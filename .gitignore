@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.bak
+*.bak.*
+.DS_Store
+node_modules/
+frontend/dist/
+nginx/ssl/
+*.dump
+backups/
