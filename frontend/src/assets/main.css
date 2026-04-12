@@ -1,0 +1,4 @@
+/* Estilos base — Tailwind CSS 3 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

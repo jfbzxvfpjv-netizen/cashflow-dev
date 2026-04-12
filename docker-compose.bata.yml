@@ -1,0 +1,143 @@
+# ============================================================================
+# Docker Compose — Nodo Bata (Raspberry Pi 4)
+# ============================================================================
+# Este fichero configura el nodo intermediario de Bata que actúa como punto de
+# acceso local para los Gestores de Caja y como sincronización intermedia
+# contra el servidor principal de Malabo.
+#
+# Servicios: db (réplica local), backend (API local), frontend (Nginx),
+#            sync (servicio de sincronización periódica contra Malabo)
+#
+# Despliegue en Raspberry Pi:
+#   1. Copiar este fichero y el directorio del proyecto al Raspberry Pi
+#   2. Configurar .env con MALABO_SERVER_URL y ENV=production
+#   3. docker compose -f docker-compose.bata.yml up -d --build
+# ============================================================================
+
+services:
+
+  # --------------------------------------------------------------------------
+  # Base de datos local PostgreSQL 15 — réplica parcial para operación offline
+  # --------------------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: cashflow-bata-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cashflow}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Error POSTGRES_PASSWORD es obligatorio}"
+    volumes:
+      - pgdata-bata:/var/lib/postgresql/data
+      - ./backend/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-cashflow}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cashflow-bata-net
+
+  # --------------------------------------------------------------------------
+  # Backend local — misma imagen, configurado como nodo Bata
+  # --------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cashflow-bata-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - ENV=${ENV:-production}
+      - NODE_TYPE=bata
+      - POSTGRES_DB=${POSTGRES_DB:-cashflow}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - "JWT_SECRET=${JWT_SECRET:?Error JWT_SECRET es obligatorio}"
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - ACCESS_TOKEN_EXPIRE_HOURS=${ACCESS_TOKEN_EXPIRE_HOURS:-8}
+      - "ENCRYPTION_KEY=${ENCRYPTION_KEY:?Error ENCRYPTION_KEY es obligatorio}"
+      - EDIT_WINDOW_MINUTES=${EDIT_WINDOW_MINUTES:-15}
+      - IMPORT_EDIT_DAYS=${IMPORT_EDIT_DAYS:-30}
+      - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-10}
+      - MAX_TRANSACTION_FILES_MB=${MAX_TRANSACTION_FILES_MB:-50}
+      - FRONTEND_URL=${FRONTEND_URL:-https://localhost}
+      - LOCAL_NETWORK_CIDR=${LOCAL_NETWORK_CIDR:-192.168.1.0/24}
+      - "MALABO_SERVER_URL=${MALABO_SERVER_URL:?Error MALABO_SERVER_URL es obligatorio}"
+      - SYNC_INTERVAL_MINUTES=${SYNC_INTERVAL_MINUTES:-15}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - uploads-bata:/app/uploads
+    expose:
+      - "8000"
+    networks:
+      - cashflow-bata-net
+
+  # --------------------------------------------------------------------------
+  # Frontend + Nginx — acceso local para Gestores de Caja de Bata
+  # Certificado autofirmado para red local
+  # --------------------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        - ENV=${ENV:-production}
+    container_name: cashflow-bata-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx/ssl:/etc/nginx/ssl
+    networks:
+      - cashflow-bata-net
+
+  # --------------------------------------------------------------------------
+  # Servicio de sincronización — sincroniza contra Malabo periódicamente
+  # --------------------------------------------------------------------------
+  sync:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cashflow-bata-sync
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["python", "-m", "app.sync.sync_service"]
+    environment:
+      - ENV=${ENV:-production}
+      - NODE_TYPE=bata
+      - POSTGRES_DB=${POSTGRES_DB:-cashflow}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - MALABO_SERVER_URL=${MALABO_SERVER_URL}
+      - SYNC_INTERVAL_MINUTES=${SYNC_INTERVAL_MINUTES:-15}
+      - JWT_SECRET=${JWT_SECRET}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    networks:
+      - cashflow-bata-net
+
+# --- Volúmenes persistentes del nodo Bata ---
+volumes:
+  pgdata-bata:
+    name: cashflow-bata-pgdata
+  uploads-bata:
+    name: cashflow-bata-uploads
+
+# --- Red interna del nodo Bata ---
+networks:
+  cashflow-bata-net:
+    name: cashflow-bata-net
+    driver: bridge

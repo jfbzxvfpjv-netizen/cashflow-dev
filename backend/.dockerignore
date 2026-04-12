@@ -1,0 +1,25 @@
+# ============================================================================
+# .dockerignore — Backend
+# ============================================================================
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.env
+.env.*
+!.env.example
+*.egg-info
+dist
+build
+.git
+.gitignore
+.vscode
+.idea
+uploads/*
+!uploads/.gitkeep
+tests/
+docs/
+*.md
+README*
+LICENSE
