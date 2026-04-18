@@ -67,11 +67,33 @@ def _enrich_transaction(db: Session, txn: Transaction) -> dict:
         remaining = max(0, int((txn.editable_until - now).total_seconds())) if is_editable else 0
 
     # Comprobar sesión cerrada
+    # Excepción: importados dentro de ventana de 30 días pueden editarse
     from app.models.cash_flow import CashSession
     sess = db.query(CashSession).filter(CashSession.id == txn.session_id).first()
     if sess and sess.status == "closed":
-        is_editable = False
-        remaining = 0
+        if not (txn.imported and txn.imported_editable_until and now <= txn.imported_editable_until):
+            is_editable = False
+            remaining = 0
+
+        # -- counterparty_name (Fix 1) --
+    counterparty_name = None
+    if txn.supplier_id:
+        from app.models.catalogs import Supplier
+        sup = db.query(Supplier).filter(Supplier.id == txn.supplier_id).first()
+        if sup:
+            counterparty_name = sup.name
+    if counterparty_name is None and txn.employee_id:
+        from app.models.catalogs import Employee
+        emp = db.query(Employee).filter(Employee.id == txn.employee_id).first()
+        if emp:
+            counterparty_name = emp.full_name
+    if counterparty_name is None and txn.partner_id:
+        from app.models.catalogs import Partner
+        par = db.query(Partner).filter(Partner.id == txn.partner_id).first()
+        if par:
+            counterparty_name = par.full_name
+    if counterparty_name is None and txn.counterparty_free:
+        counterparty_name = txn.counterparty_free
 
     return {
         "category_name": cat.name if cat else None,
@@ -81,6 +103,7 @@ def _enrich_transaction(db: Session, txn: Transaction) -> dict:
         "has_attachments": att_count > 0,
         "has_signatures": sig_count > 0,
         "is_editable": is_editable,
+        "counterparty_name": counterparty_name,
         "seconds_remaining": remaining
     }
 

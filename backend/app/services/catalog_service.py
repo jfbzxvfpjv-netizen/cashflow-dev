@@ -8,6 +8,7 @@ from sqlalchemy import func, and_, or_
 from fastapi import HTTPException
 from typing import Optional, List, Tuple
 
+from app.models.cash_flow import Transaction
 from app.models import (
     Project, Work, TransactionCategory, TransactionSubcategory,
     Supplier, Employee, Partner, CorporateAccount, Vehicle,
@@ -521,3 +522,121 @@ class CategoryDeleteService:
         db.delete(sub)
         db.commit()
         return cat_id
+
+
+# ─────────────────────────────────────────────
+# DELETE CONDICIONAL — Empleados, Proveedores, Socios
+# (parche toggle_delete_catalogos)
+# ─────────────────────────────────────────────
+
+class EmployeeDeleteService:
+    @staticmethod
+    def delete_employee(db, employee_id: int, user_id: int):
+        """Elimina empleado si no tiene transacciones vinculadas.
+        Borra historial salarial y desvincula vehículos automáticamente."""
+        emp = db.query(Employee).get(employee_id)
+        if not emp:
+            raise HTTPException(404, "Empleado no encontrado")
+        # Verificar transacciones vinculadas (bloquea eliminación)
+        tx_count = db.query(Transaction).filter(Transaction.employee_id == employee_id).count()
+        if tx_count > 0:
+            raise HTTPException(
+                409,
+                f"No se puede eliminar: el empleado tiene {tx_count} transaccion(es) vinculada(s). Desactívelo en su lugar."
+            )
+        # Borrar historial salarial (dependencia sin valor sin el empleado)
+        db.query(EmployeeSalaryHistory).filter(
+            EmployeeSalaryHistory.employee_id == employee_id
+        ).delete()
+        # Desvincular vehículos donde es conductor habitual
+        db.query(Vehicle).filter(
+            Vehicle.usual_driver_id == employee_id
+        ).update({"usual_driver_id": None})
+        _log_audit(db, user_id, None, "DELETE_EMPLOYEE", "employees", employee_id,
+                   {"code": emp.code, "full_name": emp.full_name})
+        db.delete(emp)
+        db.commit()
+        return {"detail": f"Empleado '{emp.full_name}' eliminado"}
+
+
+class SupplierDeleteService:
+    @staticmethod
+    def delete_supplier(db, supplier_id: int, user_id: int):
+        """Elimina proveedor si no tiene transacciones vinculadas."""
+        sup = db.query(Supplier).get(supplier_id)
+        if not sup:
+            raise HTTPException(404, "Proveedor no encontrado")
+        tx_count = db.query(Transaction).filter(Transaction.supplier_id == supplier_id).count()
+        if tx_count > 0:
+            raise HTTPException(
+                409,
+                f"No se puede eliminar: el proveedor tiene {tx_count} transaccion(es) vinculada(s). Desactívelo en su lugar."
+            )
+        _log_audit(db, user_id, None, "DELETE_SUPPLIER", "suppliers", supplier_id,
+                   {"code": sup.code, "name": sup.name})
+        db.delete(sup)
+        db.commit()
+        return {"detail": f"Proveedor '{sup.name}' eliminado"}
+
+
+class PartnerDeleteService:
+    @staticmethod
+    def delete_partner(db, partner_id: int, user_id: int):
+        """Elimina socio si no tiene transacciones vinculadas."""
+        partner = db.query(Partner).get(partner_id)
+        if not partner:
+            raise HTTPException(404, "Socio no encontrado")
+        tx_count = db.query(Transaction).filter(Transaction.partner_id == partner_id).count()
+        if tx_count > 0:
+            raise HTTPException(
+                409,
+                f"No se puede eliminar: el socio tiene {tx_count} transaccion(es) vinculada(s). Desactívelo en su lugar."
+            )
+        _log_audit(db, user_id, None, "DELETE_PARTNER", "partners", partner_id,
+                   {"code": partner.code, "full_name": partner.full_name})
+        db.delete(partner)
+        db.commit()
+        return {"detail": f"Socio '{partner.full_name}' eliminado"}
+
+
+class CorporateAccountDeleteService:
+    @staticmethod
+    def delete_account(db, account_id: int, user_id: int):
+        """Elimina cuenta corporativa si no tiene retiradas bancarias vinculadas."""
+        from app.models.cash_flow import BankWithdrawalRequest
+        acc = db.query(CorporateAccount).get(account_id)
+        if not acc:
+            raise HTTPException(404, "Cuenta corporativa no encontrada")
+        wd_count = db.query(BankWithdrawalRequest).filter(
+            BankWithdrawalRequest.corporate_account_id == account_id
+        ).count()
+        if wd_count > 0:
+            raise HTTPException(
+                409,
+                f"No se puede eliminar: tiene {wd_count} retirada(s) bancaria(s) vinculada(s). Desactívela en su lugar."
+            )
+        _log_audit(db, user_id, None, "DELETE_CORPORATE_ACCOUNT", "corporate_accounts", account_id,
+                   {"bank_name": acc.bank_name, "account_number": acc.account_number})
+        db.delete(acc)
+        db.commit()
+        return {"detail": f"Cuenta '{acc.bank_name} - {acc.account_number}' eliminada"}
+
+
+class VehicleDeleteService:
+    @staticmethod
+    def delete_vehicle(db, vehicle_id: int, user_id: int):
+        """Elimina vehículo si no tiene transacciones vinculadas."""
+        v = db.query(Vehicle).get(vehicle_id)
+        if not v:
+            raise HTTPException(404, "Vehículo no encontrado")
+        tx_count = db.query(Transaction).filter(Transaction.vehicle_id == vehicle_id).count()
+        if tx_count > 0:
+            raise HTTPException(
+                409,
+                f"No se puede eliminar: tiene {tx_count} transaccion(es) vinculada(s). Desactívelo en su lugar."
+            )
+        _log_audit(db, user_id, None, "DELETE_VEHICLE", "vehicles", vehicle_id,
+                   {"plate": v.plate})
+        db.delete(v)
+        db.commit()
+        return {"detail": f"Vehículo '{v.plate}' eliminado"}

@@ -25,3 +25,9 @@ def create_partner(data: PartnerCreate, db: Session = Depends(get_db), current_u
 @router.put("/{partner_id}", response_model=PartnerResponse)
 def update_partner(partner_id: int, data: PartnerUpdate, db: Session = Depends(get_db), current_user=Depends(require_role("admin"))):
     return PartnerResponse.model_validate(PartnerService.update_partner(db, partner_id, data, current_user.id))
+
+
+@router.delete("/{partner_id}")
+def delete_partner(partner_id: int, db: Session = Depends(get_db), current_user=Depends(require_role("admin"))):
+    from app.services.catalog_service import PartnerDeleteService
+    return PartnerDeleteService.delete_partner(db, partner_id, current_user.id)

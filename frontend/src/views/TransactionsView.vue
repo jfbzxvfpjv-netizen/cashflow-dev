@@ -18,6 +18,11 @@
       <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         <input v-model="filters.date_start" type="date" class="border rounded px-2 py-1" placeholder="Desde" />
         <input v-model="filters.date_end" type="date" class="border rounded px-2 py-1" placeholder="Hasta" />
+        <select v-if="auth.hasRole('admin', 'contable')" v-model="filters.delegacion" class="border rounded px-2 py-1" @change="loadTransactions">
+          <option value="">Todas las delegaciones</option>
+          <option value="Bata">Bata</option>
+          <option value="Malabo">Malabo</option>
+        </select>
         <select v-model="filters.type" class="border rounded px-2 py-1">
           <option value="">Todos los tipos</option>
           <option value="income">Ingreso</option>
@@ -66,6 +71,7 @@
             <th class="px-3 py-2">Ref.</th>
             <th class="px-3 py-2">Concepto</th>
             <th class="px-3 py-2">Categoría</th>
+            <th class="px-3 py-2">Contraparte</th>
             <th class="px-3 py-2 text-right">Importe</th>
             <th class="px-3 py-2 text-center">Estado</th>
             <th class="px-3 py-2 text-center">📎</th>
@@ -81,6 +87,7 @@
             <td class="px-3 py-2 font-mono text-xs">{{ t.reference_number }}</td>
             <td class="px-3 py-2 max-w-xs truncate">{{ t.concept }}</td>
             <td class="px-3 py-2 text-xs">{{ t.category_name }}</td>
+            <td class="px-3 py-2 text-xs max-w-[180px] truncate" :title="t.counterparty_name">{{ t.counterparty_name || '—' }}</td>
             <td class="px-3 py-2 text-right font-mono"
                 :class="t.type === 'income' ? 'text-green-600' : 'text-red-600'">
               {{ t.type === 'income' ? '+' : '-' }}{{ Number(t.amount).toLocaleString() }}
@@ -107,7 +114,7 @@
             </td>
           </tr>
           <tr v-if="transactions.length === 0">
-            <td colspan="8" class="px-3 py-8 text-center text-gray-400">No hay transacciones</td>
+            <td colspan="9" class="px-3 py-8 text-center text-gray-400">No hay transacciones</td>
           </tr>
         </tbody>
       </table>
@@ -137,7 +144,7 @@ const transactions = ref([])
 const currentPage = ref(1)
 const totalPages = ref(1)
 const filters = ref({
-  date_start: '', date_end: '', type: '', approval_status: '', concept: '',
+  delegacion: '', date_start: '', date_end: '', type: '', approval_status: '', concept: '',
   category_id: '', subcategory_id: '', supplier_id: '', employee_id: ''
 })
 
@@ -176,7 +183,7 @@ function onCounterpartyChange() {
 
 function resetFilters() {
   filters.value = {
-    date_start: '', date_end: '', type: '', approval_status: '', concept: '',
+    delegacion: '', date_start: '', date_end: '', type: '', approval_status: '', concept: '',
     category_id: '', subcategory_id: '', supplier_id: '', employee_id: ''
   }
   counterpartyFilter.value = ''

@@ -97,6 +97,21 @@
               >
                 Historial
               </button>
+              <button
+                v-if="isAdmin"
+                class="text-sm"
+                :class="emp.active ? 'text-red-500 hover:text-red-700' : 'text-green-500 hover:text-green-700'"
+                @click="toggleActive(emp)"
+              >
+                {{ emp.active ? 'Desactivar' : 'Activar' }}
+              </button>
+              <button
+                v-if="isAdmin"
+                class="text-sm text-red-600 hover:text-red-800"
+                @click="confirmDelete(emp)"
+              >
+                Eliminar
+              </button>
             </td>
           </tr>
           <tr v-if="!employees.length">
@@ -233,6 +248,20 @@
       </div>
     </Teleport>
   </div>
+    <!-- Modal confirmación eliminar -->
+    <div v-if="showDeleteConfirm" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @click.self="showDeleteConfirm = false">
+      <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Confirmar eliminación</h3>
+        <p class="text-sm text-gray-600 mb-2">¿Eliminar permanentemente a <strong>{{ deletingEmployee?.full_name }}</strong>?</p>
+        <p class="text-xs text-gray-500 mb-4">Solo es posible si no tiene transacciones vinculadas.</p>
+        <p v-if="deleteError" class="text-sm text-red-600 mb-3 bg-red-50 p-2 rounded">{{ deleteError }}</p>
+        <div class="flex justify-end gap-3">
+          <button class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800" @click="showDeleteConfirm = false">Cancelar</button>
+          <button class="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700" @click="executeDelete">Eliminar</button>
+        </div>
+      </div>
+    </div>
+  
 </template>
 
 <script setup>
@@ -268,6 +297,9 @@ const salaryError = ref('')
 
 // Modal historial
 const showHistoryModal = ref(false)
+const showDeleteConfirm = ref(false)
+const deletingEmployee = ref(null)
+const deleteError = ref('')
 const historyEmployee = ref(null)
 const salaryHistory = ref([])
 
@@ -355,4 +387,35 @@ async function showHistory(emp) {
 }
 
 onMounted(fetchEmployees)
+
+
+// ── Toggle activar/desactivar y delete (parche toggle_delete_catalogos) ──
+async function toggleActive(emp) {
+  try {
+    await employeesApi.update(emp.id, { active: !emp.active })
+    fetchEmployees()
+  } catch (e) {
+    alert(e.response?.data?.detail || 'Error al cambiar estado')
+  }
+}
+
+function confirmDelete(emp) {
+  deletingEmployee.value = emp
+  deleteError.value = ''
+  showDeleteConfirm.value = true
+}
+
+async function executeDelete() {
+  if (!deletingEmployee.value) return
+  try {
+    await employeesApi.delete(deletingEmployee.value.id)
+    showDeleteConfirm.value = false
+    deletingEmployee.value = null
+    deleteError.value = ''
+    fetchEmployees()
+  } catch (e) {
+    deleteError.value = e.response?.data?.detail || 'Error al eliminar'
+  }
+}
+
 </script>

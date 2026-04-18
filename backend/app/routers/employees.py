@@ -39,3 +39,9 @@ def update_salary(employee_id: int, data: EmployeeSalaryUpdate, db: Session = De
 @router.get("/{employee_id}/salary-history", response_model=List[SalaryHistoryResponse])
 def get_salary_history(employee_id: int, db: Session = Depends(get_db), current_user=Depends(require_role("admin", "contable"))):
     return [SalaryHistoryResponse.model_validate(h) for h in EmployeeService.get_salary_history(db, employee_id)]
+
+
+@router.delete("/{employee_id}")
+def delete_employee(employee_id: int, db: Session = Depends(get_db), current_user=Depends(require_role("admin"))):
+    from app.services.catalog_service import EmployeeDeleteService
+    return EmployeeDeleteService.delete_employee(db, employee_id, current_user.id)

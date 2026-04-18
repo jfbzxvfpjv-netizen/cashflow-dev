@@ -14,6 +14,8 @@
       :can-create="isAdmin"
       :can-edit="isAdmin"
       :can-toggle="isAdmin"
+      :can-delete="isAdmin"
+      :delete-fn="suppliersApi.delete"
       :extra-params="extraParams"
     >
       <template #filters>

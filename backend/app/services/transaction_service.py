@@ -227,9 +227,12 @@ class TransactionService:
                 )
 
         # Verificar que la sesión no esté cerrada
+        # Excepción: los registros importados dentro de su ventana de 30 días
+        # pueden editarse aunque la sesión de importación esté cerrada
         session = db.query(CashSession).filter(CashSession.id == txn.session_id).first()
         if session and session.status == "closed":
-            raise ValueError("No se pueden modificar transacciones de una sesión cerrada")
+            if not (txn.imported and txn.imported_editable_until and now <= txn.imported_editable_until):
+                raise ValueError("No se pueden modificar transacciones de una sesión cerrada")
 
         # Valores anteriores para auditoría
         old_values = {

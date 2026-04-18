@@ -68,4 +68,10 @@ export default {
   getEmployees(params = {}) {
     return api.get('/employees', { params })
   },
+  getProjects(params = {}) {
+    return api.get('/projects', { params })
+  },
+  getWorks(params = {}) {
+    return api.get('/works', { params })
+  },
 }

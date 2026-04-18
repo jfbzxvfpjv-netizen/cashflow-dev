@@ -84,6 +84,7 @@ class TransactionOut(BaseModel):
     employee_id: Optional[int] = None
     partner_id: Optional[int] = None
     counterparty_free: Optional[str] = None
+    counterparty_name: Optional[str] = None
     vehicle_id: Optional[int] = None
     type: str
     amount: Decimal

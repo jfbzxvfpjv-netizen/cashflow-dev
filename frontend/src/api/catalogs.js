@@ -41,6 +41,7 @@ export const suppliersApi = {
   get: (id) => api.get(`/suppliers/${id}`),
   create: (data) => api.post('/suppliers', data),
   update: (id, data) => api.put(`/suppliers/${id}`, data),
+  delete: (id) => api.delete(`/suppliers/${id}`),
 }
 
 export const employeesApi = {
@@ -50,6 +51,7 @@ export const employeesApi = {
   update: (id, data) => api.put(`/employees/${id}`, data),
   updateSalary: (id, data) => api.put(`/employees/${id}/salary`, data),
   getSalaryHistory: (id) => api.get(`/employees/${id}/salary-history`),
+  delete: (id) => api.delete(`/employees/${id}`),
 }
 
 export const partnersApi = {
@@ -57,6 +59,7 @@ export const partnersApi = {
   get: (id) => api.get(`/partners/${id}`),
   create: (data) => api.post('/partners', data),
   update: (id, data) => api.put(`/partners/${id}`, data),
+  delete: (id) => api.delete(`/partners/${id}`),
 }
 
 export const corporateAccountsApi = {
@@ -64,6 +67,7 @@ export const corporateAccountsApi = {
   get: (id) => api.get(`/corporate-accounts/${id}`),
   create: (data) => api.post('/corporate-accounts', data),
   update: (id, data) => api.put(`/corporate-accounts/${id}`, data),
+  delete: (id) => api.delete(`/corporate-accounts/${id}`),
 }
 
 export const vehiclesApi = {
@@ -71,4 +75,5 @@ export const vehiclesApi = {
   get: (id) => api.get(`/vehicles/${id}`),
   create: (data) => api.post('/vehicles', data),
   update: (id, data) => api.put(`/vehicles/${id}`, data),
+  delete: (id) => api.delete(`/vehicles/${id}`),
 }

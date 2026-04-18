@@ -20,3 +20,9 @@ def create_vehicle(data: VehicleCreate, db: Session = Depends(get_db), current_u
 @router.put("/{vehicle_id}", response_model=VehicleResponse)
 def update_vehicle(vehicle_id: int, data: VehicleUpdate, db: Session = Depends(get_db), current_user=Depends(require_role("admin"))):
     return VehicleResponse.model_validate(VehicleService.update_vehicle(db, vehicle_id, data, current_user.id))
+
+
+@router.delete("/{vehicle_id}")
+def delete_vehicle(vehicle_id: int, db: Session = Depends(get_db), current_user=Depends(require_role("admin"))):
+    from app.services.catalog_service import VehicleDeleteService
+    return VehicleDeleteService.delete_vehicle(db, vehicle_id, current_user.id)

@@ -34,6 +34,16 @@ const ImportView = () => import('@/views/ImportView.vue')
 const DevView = () => import('@/views/DevView.vue')
 
 const ReportsView = () => import('@/views/ReportsView.vue')
+// M9 — Módulos financieros especiales (lazy)
+const AdvancesLoansView        = () => import('@/views/AdvancesLoansView.vue')
+const RetentionsDepositsView   = () => import('@/views/RetentionsDepositsView.vue')
+const FloatsView               = () => import('@/views/FloatsView.vue')
+const InstallmentsView         = () => import('@/views/InstallmentsView.vue')
+const CurrencyView             = () => import('@/views/CurrencyView.vue')
+const PartnerAccountsView      = () => import('@/views/PartnerAccountsView.vue')
+const ReimbursableExpensesView = () => import('@/views/ReimbursableExpensesView.vue')
+const MoneyTransfersView       = () => import('@/views/MoneyTransfersView.vue')
+
 const routes = [
   { path: '/login', name: 'login', component: LoginView, meta: { requiresAuth: false } },
   { path: '/', redirect: '/dashboard' },
@@ -79,6 +89,15 @@ const routes = [
       component: () => import('../views/admin/BackupsView.vue'),
       meta: { requiresAuth: true, roles: ['admin'] }
     },
+  // M9: Módulos financieros especiales
+  { path: '/advances-loans',       name: 'AdvancesLoans',        component: AdvancesLoansView,        meta: { requiresAuth: true } },
+  { path: '/retentions-deposits',  name: 'RetentionsDeposits',   component: RetentionsDepositsView,   meta: { requiresAuth: true } },
+  { path: '/floats',               name: 'Floats',               component: FloatsView,               meta: { requiresAuth: true } },
+  { path: '/installments',         name: 'Installments',         component: InstallmentsView,         meta: { requiresAuth: true } },
+  { path: '/currency-ops',         name: 'CurrencyOps',          component: CurrencyView,             meta: { requiresAuth: true } },
+  { path: '/partner-accounts',     name: 'PartnerAccounts',      component: PartnerAccountsView,      meta: { requiresAuth: true } },
+  { path: '/reimbursable-expenses',name: 'ReimbursableExpenses', component: ReimbursableExpensesView, meta: { requiresAuth: true } },
+  { path: '/money-transfers',      name: 'MoneyTransfers',       component: MoneyTransfersView,       meta: { requiresAuth: true } },
 ]
 
 const router = createRouter({ history: createWebHistory(), routes })

@@ -96,6 +96,20 @@
               >
                 {{ item.active ? 'Desactivar' : 'Activar' }}
               </button>
+              <button
+                v-if="canDelete"
+                class="text-sm text-red-600 hover:text-red-800"
+                @click="confirmDeleteItem(item)"
+              >
+                Eliminar
+              </button>
+              <button
+                v-if="canDelete"
+                class="text-sm text-red-600 hover:text-red-800"
+                @click="confirmDeleteItem(item)"
+              >
+                Eliminar
+              </button>
             </td>
           </tr>
           <tr v-if="!items.length">
@@ -154,6 +168,19 @@
       </div>
     </Teleport>
   </div>
+    <!-- Modal confirmación eliminar -->
+    <div v-if="showDeleteConfirm" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @click.self="showDeleteConfirm = false">
+      <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Confirmar eliminación</h3>
+        <p class="text-sm text-gray-600 mb-4">¿Eliminar permanentemente este registro? Esta acción no se puede deshacer.</p>
+        <p v-if="deleteError" class="text-sm text-red-600 mb-3 bg-red-50 p-2 rounded">{{ deleteError }}</p>
+        <div class="flex justify-end gap-3">
+          <button class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800" @click="showDeleteConfirm = false">Cancelar</button>
+          <button class="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700" @click="executeDelete">Eliminar</button>
+        </div>
+      </div>
+    </div>
+  
 </template>
 
 <script setup>
@@ -170,6 +197,10 @@ const props = defineProps({
   canCreate: { type: Boolean, default: false },
   canEdit: { type: Boolean, default: false },
   canToggle: { type: Boolean, default: false },
+  canDelete: { type: Boolean, default: false },
+  deleteFn: { type: Function, default: null },
+  canDelete: { type: Boolean, default: false },
+  deleteFn: { type: Function, default: null },
   pageSize: { type: Number, default: 50 },
   extraParams: { type: Object, default: () => ({}) },
 })
@@ -183,6 +214,9 @@ const searchQuery = ref('')
 const showInactive = ref(false)
 const loading = ref(false)
 const showModal = ref(false)
+const showDeleteConfirm = ref(false)
+const deletingItem = ref(null)
+const deleteError = ref('')
 const editingItem = ref(null)
 
 const totalPages = computed(() => Math.ceil(total.value / props.pageSize))
@@ -271,6 +305,25 @@ async function toggleActive(item) {
   }
 }
 
+function confirmDeleteItem(item) {
+  deletingItem.value = item
+  deleteError.value = ''
+  showDeleteConfirm.value = true
+}
+
+async function executeDelete() {
+  if (!deletingItem.value || !props.deleteFn) return
+  try {
+    await props.deleteFn(deletingItem.value.id)
+    showDeleteConfirm.value = false
+    deletingItem.value = null
+    deleteError.value = ''
+    fetchData()
+  } catch (e) {
+    deleteError.value = e.response?.data?.detail || 'Error al eliminar'
+  }
+}
+
 // Recargar al cambiar filtros
 watch(showInactive, fetchData)
 watch(() => props.extraParams, fetchData, { deep: true })
@@ -279,5 +332,5 @@ watch(() => props.extraParams, fetchData, { deep: true })
 fetchData()
 
 // Exponer para uso externo
-defineExpose({ fetchData })
+defineExpose({ fetchData, editingItem })
 </script>

@@ -20,3 +20,9 @@ def create_supplier(data: SupplierCreate, db: Session = Depends(get_db), current
 @router.put("/{supplier_id}", response_model=SupplierResponse)
 def update_supplier(supplier_id: int, data: SupplierUpdate, db: Session = Depends(get_db), current_user=Depends(require_role("admin"))):
     return SupplierResponse.model_validate(SupplierService.update_supplier(db, supplier_id, data, current_user.id))
+
+
+@router.delete("/{supplier_id}")
+def delete_supplier(supplier_id: int, db: Session = Depends(get_db), current_user=Depends(require_role("admin"))):
+    from app.services.catalog_service import SupplierDeleteService
+    return SupplierDeleteService.delete_supplier(db, supplier_id, current_user.id)

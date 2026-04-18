@@ -25,6 +25,7 @@ cryptography==42.0.8
 
 # --- Generación de PDF ---
 weasyprint==62.3
+pydyf==0.10.0
 
 # --- Excel (lectura y escritura) ---
 openpyxl==3.1.5

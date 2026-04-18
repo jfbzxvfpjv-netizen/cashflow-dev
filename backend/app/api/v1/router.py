@@ -82,4 +82,24 @@ api_router.include_router(dashboard_router)
 
 # M8 — Informes
 from app.routers.reports import router as reports_router
+# M9 — Módulos financieros especiales
+from app.routers.advances import router as advances_router
+from app.routers.retentions import router as retentions_router
+from app.routers.floats import router as floats_router
+from app.routers.installments import router as installments_router
+from app.routers.currency import router as currency_router
+from app.routers.partner_accounts import router as partner_accounts_router
+from app.routers.reimbursable import router as reimbursable_router
+from app.routers.money_transfers import router as money_transfers_router
 api_router.include_router(reports_router)
+
+# --- M9: Módulos financieros especiales ---
+api_router.include_router(advances_router)
+api_router.include_router(retentions_router)
+api_router.include_router(floats_router)
+api_router.include_router(installments_router)
+api_router.include_router(currency_router)
+api_router.include_router(partner_accounts_router)
+api_router.include_router(reimbursable_router)
+api_router.include_router(money_transfers_router)
+

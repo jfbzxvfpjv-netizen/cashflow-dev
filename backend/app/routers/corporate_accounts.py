@@ -19,3 +19,9 @@ def create_account(data: CorporateAccountCreate, db: Session = Depends(get_db), 
 @router.put("/{account_id}", response_model=CorporateAccountResponse)
 def update_account(account_id: int, data: CorporateAccountUpdate, db: Session = Depends(get_db), current_user=Depends(require_role("admin"))):
     return CorporateAccountResponse.model_validate(CorporateAccountService.update_account(db, account_id, data, current_user.id))
+
+
+@router.delete("/{account_id}")
+def delete_account(account_id: int, db: Session = Depends(get_db), current_user=Depends(require_role("admin"))):
+    from app.services.catalog_service import CorporateAccountDeleteService
+    return CorporateAccountDeleteService.delete_account(db, account_id, current_user.id)

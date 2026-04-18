@@ -11,7 +11,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.database import engine, Base
-from app.models import User, AuditLog  # noqa: F401 — registra modelos
+from app.models import *  # noqa: F401 — registra todos los modelos
 from app.api.v1.router import api_router
 from app.middleware.rate_limit import limiter
 from app.routers import admin_backups

@@ -94,59 +94,65 @@ PROJECTS_WITH_WORKS = {
 }
 
 CATEGORIES_WITH_SUBCATEGORIES = [
-    ("Transporte", "expense", True, [
-        "Peajes", "Taxi", "Vuelos", "Barco", "Envio_Terrestre", "Alquiler_Vehiculo"]),
-    ("Flota_vehiculos", "expense", True, [
-        "Combustible_Flota", "Reparacion", "Neumaticos",
-        "Compra_vehiculos", "Impuestos_Circulacion", "Seguro", "ITV_Revision"]),
-    ("Energia", "expense", True, ["Combustible_Grupos", "Electricidad"]),
-    ("Mantenimiento", "expense", True, [
-        "Grupos_Electrogenos", "Instalaciones", "Equipos", "Vehiculos"]),
-    ("Nomina_Salarios", "expense", True, [
+    # === EGRESOS (23 categorías) ===
+    ("Nominas_Personal", "expense", True, [
         "Salarios", "Anticipo_Salario", "Vacaciones", "Gratificaciones",
-        "Seguridad_Social", "Indemnizaciones"]),
+        "Liquidaciones", "Prestamos_Empleados"]),
+    ("Costes_Directos_Proyecto", "expense", True, [
+        "Combustible_Grupos", "Materiales_Proyecto", "Estajistas_Proyecto"]),
+    ("Flota_Vehiculos", "expense", True, [
+        "Combustible_Flota", "Reparacion", "Neumaticos", "Seguro",
+        "Impuestos_Circulacion", "Mantenimiento_Preventivo", "Compra_vehiculos"]),
     ("Servicios_Externos", "expense", True, [
-        "Estajistas", "Subcontratas", "Servicios_Varios",
-        "Asesorias", "Honorarios_profesionales"]),
+        "Estajistas", "Subcontratas", "Asesorias", "Vigilancia_Seguridad"]),
+    ("Obras_Reformas", "expense", True, [
+        "Reforma_Inmuebles", "Obras_Menores"]),
+    ("Comisiones_Comerciales", "expense", True, [
+        "Comisiones_Cobro", "Comisiones_Intermediacion"]),
+    ("Logistica_Envios", "expense", True, [
+        "Envio_Aereo", "Envio_Maritimo", "Envio_Internacional", "Aduanas_Despacho"]),
+    ("Transporte", "expense", True, [
+        "Peajes", "Taxi", "Vuelos", "Barco", "Alquiler_Vehiculo"]),
+    ("Dietas_Viajes", "expense", True, [
+        "Hoteles", "Comidas", "Otros_dietas"]),
+    ("Arriendo", "expense", True, [
+        "Viviendas", "Oficinas", "Almacenes"]),
     ("Servicios_Basicos", "expense", True, [
-        "Internet", "Telefono", "Electricidad", "Agua", "Basura", "Canales"]),
-    ("Suministros", "expense", True, [
-        "Limpieza", "Papeleria", "Cafeteria", "Suministros_Varios"]),
-    ("Arriendo", "expense", True, ["Viviendas", "Oficinas", "Almacenes"]),
-    ("Dietas", "expense", True, ["Hoteles", "Comidas", "Otros_dietas"]),
-    ("Logistica", "expense", True, [
-        "Envio_Aereo", "Envio_Maritimo", "Envio_Terrestre"]),
+        "Telefono", "Electricidad", "Agua", "Basura",
+        "Datos_Moviles", "Canales"]),
+    ("Suministros_Oficina", "expense", True, [
+        "Papeleria", "Limpieza", "Cafeteria", "Documentacion",
+        "Suministros_Varios"]),
+    ("Compras_Material", "expense", True, [
+        "Materiales", "Repuestos", "Consumibles", "Herramientas",
+        "Stock_Almacen"]),
     ("Maquinaria", "expense", True, [
-        "Combustible_Maq", "Reparacion_Maq", "Compra_Maquinaria", "Alquiler_Maquinaria"]),
-    ("Compras_mercancia", "expense", True, [
-        "Materiales", "Herramientas", "Equipos", "Consumibles", "Repuestos"]),
-    ("Otros_gastos", "expense", True, ["Gastos_Varios"]),
-    ("Atenciones_comerciales", "expense", False, [
-        "Representacion", "Protocolo", "Obsequios"]),
-    ("Gastos_Sociales", "expense", True, [
-        "Gastos_medicos", "Formacion", "Bienestar"]),
-    ("Transferencia_entrada", "income", True, [
-        "Cheque", "Transferencia_bancaria"]),
-    ("Otros_ingresos", "income", True, [
-        "Ingresos_Varios", "Devoluciones", "Intereses_bancarios", "Subvenciones"]),
-    ("Divisas", "both", True, ["Compra_Euros", "Entrega_Euros", "Otras_divisas"]),
-    ("Anticipos_empleados", "expense", True, [
-        "Anticipo_Salario", "Anticipo_Gastos"]),
-    ("Circulantes", "both", True, [
-        "Apertura_Circulante", "Liquidacion_Circulante", "Devolucion_Sobrante"]),
-    ("Socios", "both", True, [
-        "Anticipo_Socio", "Pago_Factura_Socio",
-        "Compensacion_Dividendos", "Aportacion_Socio"]),
-    ("Envios_Dinero", "both", True, [
-        "Western_Union", "MoneyGram", "Operador_Local", "Comision_Envio"]),
+        "Combustible_Maquinaria", "Reparacion_Maquinaria"]),
+    ("Tasas_Impuestos", "expense", True, [
+        "Impuestos_Generales", "Documentacion_Empleados", "Documentacion_Empresa"]),
+    ("Comisiones_Bancarias", "expense", True, [
+        "Transferencias_Internac", "Gestion_Bancaria"]),
+    ("Gastos_Representacion", "expense", False, [
+        "Representacion"]),
+    ("Op_Socios_Direccion", "expense", True, [
+        "Anticipos_Socios", "Aportaciones_Socios", "Anticipos_Beneficios"]),
+    ("Operaciones_Divisas", "expense", True, [
+        "Compra_Divisas", "Entrega_Divisas"]),
+    ("Prestamos_Otorgados", "expense", True, [
+        "Prestamos_Terceros"]),
     ("Gastos_Reembolsables", "expense", True, [
-        "Tarjeta_Personal", "Transferencia_Personal", "Efectivo_Personal"]),
-    ("Ingresos_Delegacion", "both", True, [
-        "Transferencia_Bata_Malabo", "Transferencia_Malabo_Bata"]),
-    ("Pagos_Fraccionados", "expense", True, [
-        "Primer_Plazo", "Plazo_Intermedio", "Plazo_Final"]),
-    ("Anticipos_socios", "expense", True, [
-        "Anticipo_Socio", "Pago_Factura_Socio"]),
+        "Reembolso_Efectivo", "Reembolso_Transferencia"]),
+    ("Circulantes_Liquidaciones", "expense", True, [
+        "Liquidacion_Circulante"]),
+    ("Otros_Gastos", "expense", True, [
+        "Gastos_Varios"]),
+    # === INGRESOS (3 categorías) ===
+    ("Transferencia_entrada", "income", True, [
+        "Transferencia_bancaria", "Cheque"]),
+    ("Cobro_Facturas", "income", True, [
+        "CNXX"]),
+    ("Otros_ingresos", "income", True, [
+        "Devoluciones"]),
 ]
 
 VEHICLES = [

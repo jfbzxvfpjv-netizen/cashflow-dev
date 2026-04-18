@@ -67,6 +67,7 @@
               >
                 {{ acc.active ? 'Desactivar' : 'Activar' }}
               </button>
+              <button class="text-red-600 hover:text-red-800" @click="confirmDelete(acc)">Eliminar</button>
             </td>
           </tr>
           <tr v-if="!accounts.length">
@@ -113,6 +114,19 @@
       </div>
     </Teleport>
   </div>
+    <!-- Modal confirmación eliminar -->
+    <div v-if="showDeleteConfirm" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @click.self="showDeleteConfirm = false">
+      <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Confirmar eliminación</h3>
+        <p class="text-sm text-gray-600 mb-4">¿Eliminar permanentemente la cuenta <strong>{{ deletingItem?.bank_name }}</strong>?</p>
+        <p v-if="deleteError" class="text-sm text-red-600 mb-3 bg-red-50 p-2 rounded">{{ deleteError }}</p>
+        <div class="flex justify-end gap-3">
+          <button class="px-4 py-2 text-sm text-gray-600" @click="showDeleteConfirm = false">Cancelar</button>
+          <button class="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700" @click="executeDelete">Eliminar</button>
+        </div>
+      </div>
+    </div>
+  
 </template>
 
 <script setup>
@@ -124,6 +138,9 @@ const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.user?.role === 'admin')
 
 const accounts = ref([])
+const showDeleteConfirm = ref(false)
+const deletingItem = ref(null)
+const deleteError = ref('')
 const delegacionFilter = ref('')
 const showModal = ref(false)
 const editing = ref(false)
@@ -177,4 +194,24 @@ async function toggleActive(acc) {
 }
 
 onMounted(fetchAccounts)
+
+
+function confirmDelete(acc) {
+  deletingItem.value = acc
+  deleteError.value = ''
+  showDeleteConfirm.value = true
+}
+
+async function executeDelete() {
+  if (!deletingItem.value) return
+  try {
+    await corporateAccountsApi.delete(deletingItem.value.id)
+    showDeleteConfirm.value = false
+    deletingItem.value = null
+    deleteError.value = ''
+    fetchAccounts()
+  } catch (e) {
+    deleteError.value = e.response?.data?.detail || 'Error al eliminar'
+  }
+}
 </script>

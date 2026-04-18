@@ -177,3 +177,18 @@ class Vehicle(Base):
     __table_args__ = (
         CheckConstraint("delegacion IN ('Bata','Malabo')", name="ck_vehicle_delegacion"),
     )
+
+# M9: Re-export de modelos financieros especiales (Capa 2)
+from app.models.financial_modules import (
+    AdvanceLoan, RetentionDeposit, Float, FloatJustification,
+    InstallmentPayment, InstallmentRecord, CurrencyOperation, EurStock,
+    PartnerAccountMovement, ReimbursableExpense, MoneyTransfer,
+)
+
+# M9: Re-export adicional — CashSession/Transaction desde cash_flow
+# Los servicios M9 (financial_helpers.py + 8 _service.py) usan el patrón
+# `from app.models import catalogs as m; m.CashSession`. En este proyecto
+# CashSession/Transaction/TransactionProject viven en app.models.cash_flow,
+# así que los re-exportamos aquí para mantener el patrón M9 sin tocar los
+# servicios.
+from app.models.cash_flow import CashSession, Transaction, TransactionProject
