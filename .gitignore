@@ -1,12 +1,59 @@
+# ============================================================================
+# .gitignore — cashflow-dev
+# ============================================================================
+
+# Secretos locales (cada equipo tiene su propio .env)
 .env
+.env.local
+.env.*.local
+
+# Backups y carpetas de respaldo (locales de cada máquina)
+backups/
+.backups/
+backups_pre_*/
+*.dump
+*.sql
+*.tar.gz
+
+# Archivos de caché y marca
+CACHED
+*.bak
+*.bak_*
+*.bak.*
+docker-compose.yml.bak*
+docker-compose.bata.yml
+
+# Logs
+*.log
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
-*.bak
-*.bak.*
-.DS_Store
+.pytest_cache/
+.mypy_cache/
+venv/
+.venv/
+*.egg-info/
+
+# Node / frontend
 node_modules/
+dist/
 frontend/dist/
-nginx/ssl/
-*.dump
-backups/
+.vite/
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Certificados SSL generados localmente
+nginx/ssl/*.key
+nginx/ssl/*.crt
+nginx/ssl/*.pem
+
+# Temporales
+*.tmp
+*.temp
