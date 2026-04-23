@@ -97,6 +97,16 @@ import api from '@/services/api'
 import transactionService from '@/services/transactionService'
 import ProjectWorkSelector from '@/components/ProjectWorkSelector.vue'
 import CounterpartySelector from '@/components/CounterpartySelector.vue'
+import { useAuthStore } from '@/stores/auth'
+
+// H-Role guard: solo gestor accede a /transactions/new
+const __authGuard = useAuthStore()
+const __routerGuard = useRouter()
+onMounted(() => {
+  if (!__authGuard.hasRole('gestor')) {
+    __routerGuard.replace('/transactions')
+  }
+})
 
 const router = useRouter()
 

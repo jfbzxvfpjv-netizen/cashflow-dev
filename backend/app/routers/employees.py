@@ -16,7 +16,7 @@ def _filter_salary(emp, user):
 
 @router.get("", response_model=PaginatedResponse)
 def list_employees(delegacion: Optional[str] = None, active_only: bool = True, search: Optional[str] = None, page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=200), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    d = current_user.delegacion if current_user.role == "gestor" else delegacion
+    d = delegacion  # Catálogo global: empleados con movilidad entre delegaciones
     items, total = EmployeeService.list_employees(db, delegacion=d, active_only=active_only, search=search, page=page, page_size=page_size)
     return {"items": [_filter_salary(e, current_user) for e in items], "total": total, "page": page, "page_size": page_size, "pages": (total + page_size - 1) // page_size}
 

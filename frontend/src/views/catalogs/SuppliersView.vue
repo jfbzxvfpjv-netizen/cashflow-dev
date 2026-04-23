@@ -5,6 +5,7 @@
 <template>
   <div class="p-6">
     <CatalogCrud
+      ref="catalogRef"
       title="Proveedores"
       singular-title="Proveedor"
       :columns="columns"
@@ -111,8 +112,9 @@ const columns = [
   { key: 'phone', label: 'Teléfono', format: (v) => v || '—' },
 ]
 
-const form = ref({})
+const form = ref({ supplier_type: 'empresa' })
 const error = ref('')
+const catalogRef = ref(null)
 
 function onFilterChange() {
   extraParams.value = typeFilter.value ? { supplier_type: typeFilter.value } : {}
@@ -124,6 +126,20 @@ async function submit(onSave) {
   catch (err) { error.value = err.response?.data?.detail || 'Error al guardar' }
 }
 
-// Inicializar formulario cuando se abre el modal
-watch(() => form, () => {}, { immediate: true })
+// H9 — Sincronizar form con el item que abre CatalogCrud
+watch(() => catalogRef.value?.editingItem, (item) => {
+  if (item) {
+    form.value = {
+      code: item.code || '',
+      supplier_type: item.supplier_type || 'empresa',
+      name: item.name || '',
+      tax_id: item.tax_id || '',
+      contact_name: item.contact_name || '',
+      phone: item.phone || '',
+      email: item.email || '',
+    }
+  } else {
+    form.value = { supplier_type: 'empresa' }
+  }
+}, { immediate: true })
 </script>

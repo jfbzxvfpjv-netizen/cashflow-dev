@@ -5,7 +5,7 @@ from typing import Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from app.core.deps import get_db, get_current_user
+from app.core.deps import get_db, get_current_user, require_role
 from app.models.user import User
 from app.models.cash_flow import Transaction
 from app.schemas.cash_session import CashSessionRead, CashSessionOpen, CashSessionClose, CashSessionFilters
@@ -31,7 +31,7 @@ def _to_read(s, db, svc, user_obj=None) -> CashSessionRead:
 
 @router.post("", response_model=CashSessionRead, status_code=201)
 async def open_session(data: CashSessionOpen, db: Session = Depends(get_db),
-                       user: User = Depends(get_current_user)):
+                       user: User = Depends(require_role("gestor"))):
     svc = SessionService(db)
     return _to_read(svc.open_session(data, user), db, svc, user)
 

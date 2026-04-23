@@ -112,7 +112,7 @@ def _enrich_transaction(db: Session, txn: Transaction) -> dict:
 async def create_transaction(
     payload: TransactionCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("gestor", "admin"))
+    user: User = Depends(require_role("gestor"))
 ):
     """Crea una transacción nueva en la sesión activa del usuario."""
     try:
@@ -128,7 +128,7 @@ async def update_transaction(
     txn_id: int,
     payload: TransactionUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("admin"))
+    user: User = Depends(require_role("admin", "gestor"))
 ):
     """Modifica una transacción dentro de su ventana de edición."""
     try:

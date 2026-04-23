@@ -138,7 +138,7 @@ import { useAuthStore } from '@/stores/auth'
 import transactionService from '@/services/transactionService'
 
 const auth = useAuthStore()
-const canCreate = computed(() => auth.hasRole('gestor', 'admin'))
+const canCreate = computed(() => auth.hasRole('gestor'))
 
 const transactions = ref([])
 const currentPage = ref(1)

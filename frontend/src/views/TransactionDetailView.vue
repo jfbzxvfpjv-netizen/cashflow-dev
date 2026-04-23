@@ -145,6 +145,7 @@
           <div><span class="text-gray-500">Delegación:</span> {{ txn.delegacion }}</div>
           <div><span class="text-gray-500">Categoría:</span> {{ txn.category_name }}</div>
           <div><span class="text-gray-500">Subcategoría:</span> {{ txn.subcategory_name }}</div>
+          <div><span class="text-gray-500">Contraparte:</span> {{ txn.counterparty_name || '—' }}</div>
           <div><span class="text-gray-500">Registrado por:</span> {{ txn.user_fullname }}</div>
           <div><span class="text-gray-500">Fecha:</span> {{ formatDate(txn.created_at) }}</div>
         </div>
@@ -178,7 +179,7 @@
         </div>
 
         <div class="flex gap-2 pt-2 border-t flex-wrap">
-          <button v-if="isAdmin && txn.is_editable && !txn.cancelled"
+          <button v-if="canEdit"
                   @click="openEdit"
                   class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
             ✎ Editar
@@ -237,6 +238,19 @@ const route = useRoute()
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.hasRole('admin'))
 const canExecute = computed(() => auth.hasRole('gestor', 'admin'))
+const canEdit = computed(() => {
+  if (!txn.value) return false
+  if (!txn.value.is_editable || txn.value.cancelled) return false
+  // Política opción 3: admin solo edita importadas, gestor solo nativas propias
+  if (isAdmin.value) {
+    return !!txn.value.imported
+  }
+  if (auth.hasRole('gestor')) {
+    if (txn.value.imported) return false
+    return auth.user?.id && txn.value.user_id === auth.user.id
+  }
+  return false
+})
 
 const txn = ref(null)
 const showReject = ref(false)
@@ -310,18 +324,18 @@ function unwrap(resp) {
 
 async function loadCatalogs() {
   try {
-    const [cats, sups, emps, projs] = await Promise.all([
+    const [cats, sups, emps, projs, parts] = await Promise.all([
       transactionService.getCategories(),
       transactionService.getSuppliers(),
       transactionService.getEmployees(),
       transactionService.getProjects(),
+      transactionService.getPartners(),
     ])
     categories.value = unwrap(cats)
     suppliers.value = unwrap(sups)
     employees.value = unwrap(emps)
-  const partRes = await api.get('/partners')
-  partners.value = partRes.data.items || partRes.data || []
     projects.value = unwrap(projs)
+    partners.value = unwrap(parts)
     console.log('Catálogos cargados:', {
       categorias: categories.value.length,
       subcat_pendiente: 'al seleccionar categoria',

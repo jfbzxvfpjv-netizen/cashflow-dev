@@ -74,4 +74,7 @@ export default {
   getWorks(params = {}) {
     return api.get('/works', { params })
   },
+  getPartners(params = {}) {
+    return api.get('/partners', { params })
+  },
 }

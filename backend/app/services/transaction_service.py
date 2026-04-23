@@ -39,6 +39,15 @@ class TransactionService:
         catálogo, contraparte obligatoria, umbral de aprobación y cálculo
         de hash SHA-256.
         """
+        # 0. Política de roles (18/04): solo los gestores mueven caja.
+        #    Defensa en profundidad: aunque el router filtrase, este service
+        #    nunca acepta creación por admin o contable.
+        if user.role != "gestor":
+            raise ValueError(
+                "Solo los gestores de caja pueden registrar transacciones. "
+                "Esta restricción es por diseño según la política de roles del proyecto."
+            )
+
         # 1. Verificar sesión abierta del usuario
         session = db.query(CashSession).filter(
             CashSession.user_id == user.id,
@@ -225,6 +234,19 @@ class TransactionService:
                 raise PermissionError(
                     "El período de edición ha expirado. Utilice el mecanismo de anulación."
                 )
+
+        # H1 — Ownership: gestor solo puede editar sus propias transacciones
+        if user.role == "gestor" and txn.user_id != user.id:
+            raise PermissionError(
+                "Solo puede editar sus propias transacciones dentro de la ventana de 15 minutos."
+            )
+
+        # Política opción 3 (23/04): admin solo edita transacciones importadas
+        if user.role == "admin" and not txn.imported:
+            raise PermissionError(
+                "El administrador solo puede editar transacciones importadas desde Excel. "
+                "Las transacciones nativas las edita únicamente el gestor autor dentro de 15 minutos."
+            )
 
         # Verificar que la sesión no esté cerrada
         # Excepción: los registros importados dentro de su ventana de 30 días
