@@ -103,3 +103,6 @@ api_router.include_router(partner_accounts_router)
 api_router.include_router(reimbursable_router)
 api_router.include_router(money_transfers_router)
 
+# --- S10: Sugerencias de categorización ---
+from app.routers.suggestions import router as suggestions_router
+api_router.include_router(suggestions_router)
