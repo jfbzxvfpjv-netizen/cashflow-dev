@@ -106,7 +106,6 @@
             <td class="px-3 py-2 text-center text-xs">
               <span v-if="t.has_attachments">📎</span>
               <span v-if="t.has_signatures">✍</span>
-              <span v-if="t.imported">📥</span>
             </td>
             <td class="px-3 py-2 text-center">
               <span v-if="t.is_editable" class="text-blue-500 text-xs">✏️</span>

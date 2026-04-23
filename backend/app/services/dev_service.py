@@ -12,11 +12,22 @@ from sqlalchemy import text
 from app.database import SessionLocal
 from app.models.cash_flow import (
     Transaction, TransactionProject, TransactionAttachment,
-    TransactionSignature, CashSession, AccountingPeriod
+    TransactionSignature, CashSession, AccountingPeriod,
+    BankWithdrawalRequest
 )
 from app.models.approvals import ExpenseApproval, CashCount
 from app.models.import_history import ImportHistory
 from app.models.audit_log import AuditLog
+# M9 — módulos financieros
+from app.models.financial_modules import (
+    AdvanceLoan, RetentionDeposit,
+    Float, FloatJustification,
+    InstallmentRecord, InstallmentPayment,
+    CurrencyOperation, EurStock,
+    PartnerAccountMovement,
+    ReimbursableExpense,
+    MoneyTransfer,
+)
 
 
 class DevService:
@@ -33,24 +44,48 @@ class DevService:
         """
         counts = {}
 
-        # 1. Borrar en orden de dependencias (hijos primero)
+        # 1. Módulos M9 (hijos primero — todos referencian Transaction o entre sí)
+        counts["installment_payments"] = db.query(InstallmentPayment).delete()
+        counts["installment_records"] = db.query(InstallmentRecord).delete()
+
+        counts["float_justifications"] = db.query(FloatJustification).delete()
+        counts["floats"] = db.query(Float).delete()
+
+        counts["advances_loans"] = db.query(AdvanceLoan).delete()
+        counts["retentions_deposits"] = db.query(RetentionDeposit).delete()
+
+        counts["currency_operations"] = db.query(CurrencyOperation).delete()
+        counts["eur_stock"] = db.query(EurStock).delete()
+
+        counts["money_transfers"] = db.query(MoneyTransfer).delete()
+        counts["reimbursable_expenses"] = db.query(ReimbursableExpense).delete()
+        counts["partner_account_movements"] = db.query(PartnerAccountMovement).delete()
+
+        # 2. Auxiliares de Transaction
         counts["transaction_projects"] = db.query(TransactionProject).delete()
         counts["transaction_signatures"] = db.query(TransactionSignature).delete()
         counts["transaction_attachments"] = db.query(TransactionAttachment).delete()
+
+        # 3. Aprobaciones y arqueos
         counts["expense_approvals"] = db.query(ExpenseApproval).delete()
         counts["cash_counts"] = db.query(CashCount).delete()
 
-
-        # 2. Historial de importación (referencia cash_sessions)
+        # 4. Historial de importación (referencia cash_sessions)
         counts["import_history"] = db.query(ImportHistory).delete()
 
-        # 3. Transacciones
+        # 5. Transacciones
         counts["transactions"] = db.query(Transaction).delete()
 
-        # 4. Sesiones de caja
+        # 6. Bank withdrawal requests (pueden referenciar sesiones)
+        counts["bank_withdrawal_requests"] = db.query(BankWithdrawalRequest).delete()
+
+        # 7. Sesiones de caja
         counts["cash_sessions"] = db.query(CashSession).delete()
 
-        # 5. Períodos contables
+        # 8. Auditoría (limpieza total al resetear)
+        counts["audit_log"] = db.query(AuditLog).delete()
+
+        # 9. Períodos contables
         counts["accounting_periods"] = db.query(AccountingPeriod).delete()
 
         # 6. Limpiar ficheros de adjuntos del disco

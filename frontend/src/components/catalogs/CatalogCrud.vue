@@ -103,13 +103,6 @@
               >
                 Eliminar
               </button>
-              <button
-                v-if="canDelete"
-                class="text-sm text-red-600 hover:text-red-800"
-                @click="confirmDeleteItem(item)"
-              >
-                Eliminar
-              </button>
             </td>
           </tr>
           <tr v-if="!items.length">
@@ -197,8 +190,6 @@ const props = defineProps({
   canCreate: { type: Boolean, default: false },
   canEdit: { type: Boolean, default: false },
   canToggle: { type: Boolean, default: false },
-  canDelete: { type: Boolean, default: false },
-  deleteFn: { type: Function, default: null },
   canDelete: { type: Boolean, default: false },
   deleteFn: { type: Function, default: null },
   pageSize: { type: Number, default: 50 },
