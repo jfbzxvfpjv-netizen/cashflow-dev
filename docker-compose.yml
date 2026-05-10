@@ -39,6 +39,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      fingermatcher:
+        condition: service_healthy
     environment:
       - ENV=${ENV:-development}
       - POSTGRES_DB=${POSTGRES_DB:-cashflow_dev}
@@ -64,6 +66,13 @@ services:
       - ADMIN_EMAIL=${ADMIN_EMAIL:-}
       - LOGIN_RATE_LIMIT=${LOGIN_RATE_LIMIT:-5/10minutes}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # M11 Fingerprint
+      - FINGERPRINT_ENGINE_URL=${FINGERPRINT_ENGINE_URL:-http://fingermatcher:8080}
+      - FINGERPRINT_ENGINE_TIMEOUT_CONNECT=${FINGERPRINT_ENGINE_TIMEOUT_CONNECT:-5}
+      - FINGERPRINT_ENGINE_TIMEOUT_READ=${FINGERPRINT_ENGINE_TIMEOUT_READ:-10}
+      - FINGERPRINT_MATCH_THRESHOLD=${FINGERPRINT_MATCH_THRESHOLD:-40}
+      - FINGERPRINT_ENROLL_MIN_QUALITY=${FINGERPRINT_ENROLL_MIN_QUALITY:-60}
+      - FINGERPRINT_VERIFY_MAX_ATTEMPTS=${FINGERPRINT_VERIFY_MAX_ATTEMPTS:-3}
     volumes:
       - uploads-dev:/app/uploads
       - backups-dev:/backups
@@ -89,6 +98,24 @@ services:
       - "8080:80"
     volumes:
       - ./nginx/ssl:/etc/nginx/ssl
+    networks:
+      - cashflow-dev-net
+  fingermatcher:
+    build:
+      context: ./microservices/fingermatcher
+      dockerfile: Dockerfile
+    container_name: cashflow-dev-fingermatcher
+    restart: unless-stopped
+    environment:
+      - JAVA_OPTS=-Xmx256m -Xms128m
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - HTTP_PORT=8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
     networks:
       - cashflow-dev-net
 
