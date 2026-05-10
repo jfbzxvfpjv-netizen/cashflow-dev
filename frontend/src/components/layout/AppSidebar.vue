@@ -55,6 +55,7 @@ const menu = [
   { to: '/money-transfers', label: 'Envíos de Dinero', icon: '📤', roles:['admin','contable','gestor'] },
   { sep:'Administración', to:'/users', label:'Usuarios', icon:'👤', roles:['admin'] },
   { to:'/admin/backups', label:'Backups', icon:'💾', roles:['admin'] },
+  { to:'/admin/fingerprints', label:'Huellas Dactilares', icon:'👆', roles:['admin'] },
   { sep:'Cuenta', to:'/change-password', label:'Cambiar Contraseña', icon:'🔑', roles:[] },
 ]
 const visible = computed(() => menu.filter(i => !i.roles || !i.roles.length || i.roles.includes(auth.userRole)))

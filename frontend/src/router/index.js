@@ -89,6 +89,12 @@ const routes = [
       component: () => import('../views/admin/BackupsView.vue'),
       meta: { requiresAuth: true, roles: ['admin'] }
     },
+    {
+      path: '/admin/fingerprints',
+      name: 'admin-fingerprints',
+      component: () => import('@/views/admin/AdminFingerprintsView.vue'),
+      meta: { requiresAuth: true, roles: ['admin'] }
+    },
   // M9: Módulos financieros especiales
   { path: '/advances-loans',       name: 'AdvancesLoans',        component: AdvancesLoansView,        meta: { requiresAuth: true } },
   { path: '/retentions-deposits',  name: 'RetentionsDeposits',   component: RetentionsDepositsView,   meta: { requiresAuth: true } },
