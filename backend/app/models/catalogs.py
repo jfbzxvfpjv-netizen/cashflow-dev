@@ -115,6 +115,8 @@ class Employee(Base):
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
 
+    # M11 - vinculacion con user del sistema (NULLABLE)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     __table_args__ = (
         CheckConstraint("delegacion IN ('Bata','Malabo')", name="ck_employee_delegacion"),
     )

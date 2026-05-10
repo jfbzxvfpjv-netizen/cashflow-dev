@@ -217,35 +217,64 @@ class TransactionService:
                     "Esta transaccion tiene contraparte externa y se aprueba directamente: "
                     "se requiere firma del firmante (M11)."
                 )
-            try:
-                png_bytes = __import__("base64").b64decode(sig_data["signature_data"])
-            except Exception:
-                raise ValueError("signature_data no es base64 valido")
-            sha256 = __import__("hashlib").sha256(png_bytes).hexdigest()
-            fss_bytes = None
-            if sig_data.get("fss_data_b64"):
+            sig_method = sig_data.get("signature_method", "wacom")
+            if sig_method in ("wacom", "wacom_provisional"):
                 try:
-                    fss_bytes = __import__("base64").b64decode(sig_data["fss_data_b64"])
+                    png_bytes = __import__("base64").b64decode(sig_data["signature_data"])
                 except Exception:
-                    raise ValueError("fss_data_b64 no es base64 valido")
-            sig = TransactionSignature(
-                transaction_id=txn.id,
-                signer_type=sig_data["signer_type"],
-                signer_name=sig_data["signer_name"],
-                signature_data=sig_data["signature_data"],
-                status=sig_data.get("status") or "valid",
-                employee_id=sig_data.get("employee_id"),
-                supplier_id=sig_data.get("supplier_id"),
-                partner_id=sig_data.get("partner_id"),
-                sha256_hash=sha256,
-                device_model=sig_data.get("device_model"),
-                width_px=sig_data.get("width_px"),
-                height_px=sig_data.get("height_px"),
-                duration_ms=sig_data.get("duration_ms"),
-                fss_data=fss_bytes,
-                captured_by_user_id=user.id,
-            )
-            db.add(sig)
+                    raise ValueError("signature_data no es base64 valido")
+                sha256 = __import__("hashlib").sha256(png_bytes).hexdigest()
+                fss_bytes = None
+                if sig_data.get("fss_data_b64"):
+                    try:
+                        fss_bytes = __import__("base64").b64decode(sig_data["fss_data_b64"])
+                    except Exception:
+                        raise ValueError("fss_data_b64 no es base64 valido")
+                sig = TransactionSignature(
+                    transaction_id=txn.id,
+                    signer_type=sig_data["signer_type"],
+                    signer_name=sig_data["signer_name"],
+                    signature_data=sig_data["signature_data"],
+                    status=sig_data.get("status") or "valid",
+                    employee_id=sig_data.get("employee_id"),
+                    supplier_id=sig_data.get("supplier_id"),
+                    partner_id=sig_data.get("partner_id"),
+                    sha256_hash=sha256,
+                    device_model=sig_data.get("device_model"),
+                    width_px=sig_data.get("width_px"),
+                    height_px=sig_data.get("height_px"),
+                    duration_ms=sig_data.get("duration_ms"),
+                    fss_data=fss_bytes,
+                    captured_by_user_id=user.id,
+                    signature_method=sig_method,
+                    fingerprint_failed_scores=sig_data.get("fingerprint_failed_scores"),
+                )
+                db.add(sig)
+            elif sig_method == "fingerprint":
+                if sig_data.get("fingerprint_score") is None:
+                    raise ValueError("signature.fingerprint_score requerido para method=fingerprint")
+                if not sig_data.get("fingerprint_finger_position"):
+                    raise ValueError("signature.fingerprint_finger_position requerido para method=fingerprint")
+                if not sig_data.get("signer_user_id"):
+                    raise ValueError("signature.signer_user_id requerido para method=fingerprint")
+                sig = TransactionSignature(
+                    transaction_id=txn.id,
+                    signer_type=sig_data["signer_type"],
+                    signer_name=sig_data["signer_name"],
+                    signature_method="fingerprint",
+                    employee_id=sig_data.get("employee_id"),
+                    supplier_id=sig_data.get("supplier_id"),
+                    partner_id=sig_data.get("partner_id"),
+                    captured_by_user_id=user.id,
+                    fingerprint_score=sig_data["fingerprint_score"],
+                    fingerprint_finger_position=sig_data["fingerprint_finger_position"],
+                    fingerprint_attempts=sig_data.get("fingerprint_attempts", 1),
+                    signer_user_id=sig_data["signer_user_id"],
+                    status="valid",
+                )
+                db.add(sig)
+            else:
+                raise ValueError(f"signature_method desconocido: {sig_method}")
 
         db.commit()
         db.refresh(txn)

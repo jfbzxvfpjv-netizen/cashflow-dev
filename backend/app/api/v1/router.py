@@ -99,3 +99,8 @@ api_router.include_router(money_transfers_router)
 # --- S10: Sugerencias de categorización ---
 from app.routers.suggestions import router as suggestions_router
 api_router.include_router(suggestions_router)
+
+
+# --- M11: Verificacion biometrica de huella ---
+from app.routers.fingerprints import router as fingerprints_router
+api_router.include_router(fingerprints_router)

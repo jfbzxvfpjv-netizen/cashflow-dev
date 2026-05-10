@@ -201,7 +201,7 @@ class TransactionSignature(Base):
     transaction_id = Column(Integer, ForeignKey("transactions.id"), nullable=False)
     signer_type = Column(String(20), nullable=False)
     signer_name = Column(String(100), nullable=False)
-    signature_data = Column(Text, nullable=False)
+    signature_data = Column(Text, nullable=True)  # M11 v2: nullable cuando method=fingerprint
     signed_at = Column(DateTime, default=datetime.utcnow)
     # M11 — campos de enriquecimiento
     status = Column(String(15), nullable=True)
@@ -216,6 +216,32 @@ class TransactionSignature(Base):
     fss_data = Column(LargeBinary, nullable=True)
     captured_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
+    # M11 v2 - soporte fingerprint
+    signature_method = Column(String(30), nullable=False, default="wacom")
+    fingerprint_finger_position = Column(String(20), nullable=True)
+    fingerprint_score = Column(Integer, nullable=True)
+    fingerprint_attempts = Column(Integer, nullable=True)
+    fingerprint_failed_scores = Column(Text, nullable=True)
+    signer_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     __table_args__ = (
         UniqueConstraint("transaction_id", "signer_type", name="uq_tx_signer"),
+    )
+
+
+
+# -- employee_fingerprints (M11) -------------------------------------------
+
+class EmployeeFingerprint(Base):
+    __tablename__ = "employee_fingerprints"
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id", ondelete="CASCADE"), nullable=False)
+    finger_position = Column(String(20), nullable=False)
+    capture_index = Column(Integer, nullable=False)
+    template_bytes = Column(LargeBinary, nullable=False)
+    quality_score = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    __table_args__ = (
+        UniqueConstraint("employee_id", "finger_position", "capture_index",
+                         name="uq_emp_finger_capture"),
     )

@@ -24,12 +24,14 @@ from app.models.cash_flow import (
     SystemConfig, CashSession, BankWithdrawalRequest,
     AccountingPeriod, Transaction, TransactionProject,
     TransactionAttachment, TransactionSignature,
+    EmployeeFingerprint,  # M11
 )
 
 __all__ += [
     "SystemConfig", "CashSession", "BankWithdrawalRequest",
     "AccountingPeriod", "Transaction", "TransactionProject",
     "TransactionAttachment", "TransactionSignature",
+    "EmployeeFingerprint",
 ]
 
 # --- M6: Aprobaciones y arqueos ---
