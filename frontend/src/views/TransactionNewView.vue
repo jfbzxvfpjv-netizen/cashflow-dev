@@ -41,7 +41,29 @@
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">Categoría *</label>
-          <select v-model="form.category_id" @change="loadSubcategories"
+
+          <!-- S10: Badge de sugerencia -->
+          <div v-if="suggestion"
+               class="mb-2 flex items-center gap-2 text-xs rounded border p-2"
+               :class="{
+                 'text-green-700 bg-green-50 border-green-200': suggestion.confidence === 'high',
+                 'text-yellow-800 bg-yellow-50 border-yellow-200': suggestion.confidence === 'medium',
+                 'text-orange-800 bg-orange-50 border-orange-200': suggestion.confidence === 'medium-low'
+               }">
+            <span v-if="suggestion.confidence === 'high'" class="font-medium">✓ Auto-aplicado:</span>
+            <span v-else class="font-medium">Sugerencia:</span>
+            <span>{{ suggestion.category_name }} / {{ suggestion.subcategory_name }}</span>
+            <span class="text-gray-500">({{ suggestion.sample_count }} mov.)</span>
+            <button v-if="suggestion.confidence !== 'high'" type="button"
+                    @click="applySuggestion"
+                    class="ml-auto px-2 py-0.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">
+              Aplicar
+            </button>
+            <button type="button" @click="dismissSuggestion"
+                    class="text-gray-400 hover:text-gray-700 text-base leading-none">×</button>
+          </div>
+
+          <select v-model="form.category_id" @change="onCategoryManualChange"
                   class="w-full border rounded px-3 py-2" required>
             <option :value="null" disabled>Seleccionar...</option>
             <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
@@ -91,10 +113,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/services/api'
 import transactionService from '@/services/transactionService'
+import suggestionService from '@/services/suggestionService'
 import ProjectWorkSelector from '@/components/ProjectWorkSelector.vue'
 import CounterpartySelector from '@/components/CounterpartySelector.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -124,6 +147,70 @@ const vehicles = ref([])
 const error = ref('')
 const success = ref('')
 const submitting = ref(false)
+
+// === S10: Sugerencias de categorización ===
+const suggestion = ref(null)
+const userEditedCategory = ref(false)
+let suggestionDebounceTimer = null
+
+async function fetchSuggestion() {
+  // No pedir sugerencias si el usuario ya edito manualmente la categoria
+  if (userEditedCategory.value) return
+
+  const ctx = {
+    concept: form.value.concept,
+    supplier_id: form.value.supplier_id,
+    employee_id: form.value.employee_id,
+    partner_id: form.value.partner_id,
+    counterparty_free: form.value.counterparty_free,
+    project_id: form.value.projects?.[0]?.project_id || null,
+    delegacion: __authGuard.user?.delegacion || null
+  }
+
+  const result = await suggestionService.fetch(ctx)
+  if (!result) {
+    suggestion.value = null
+    return
+  }
+  suggestion.value = result
+
+  // Auto-aplicar si confianza alta
+  if (result.confidence === 'high') {
+    await applySuggestion()
+  }
+}
+
+async function applySuggestion() {
+  if (!suggestion.value) return
+  form.value.category_id = suggestion.value.category_id
+  // Cargar subcategorias de la nueva categoria, luego asignar la subcategoria sugerida
+  await loadSubcategories()
+  form.value.subcategory_id = suggestion.value.subcategory_id
+}
+
+function dismissSuggestion() {
+  suggestion.value = null
+}
+
+function onCategoryManualChange() {
+  // El usuario eligio una categoria manualmente — desactivar sugerencias en este formulario
+  userEditedCategory.value = true
+  suggestion.value = null
+  loadSubcategories()
+}
+
+function debouncedFetchSuggestion() {
+  if (suggestionDebounceTimer) clearTimeout(suggestionDebounceTimer)
+  suggestionDebounceTimer = setTimeout(() => fetchSuggestion(), 500)
+}
+
+// Watchers con debounce — uno por campo para garantizar deteccion fiable
+watch(() => form.value.concept, debouncedFetchSuggestion)
+watch(() => form.value.supplier_id, debouncedFetchSuggestion)
+watch(() => form.value.employee_id, debouncedFetchSuggestion)
+watch(() => form.value.partner_id, debouncedFetchSuggestion)
+watch(() => form.value.counterparty_free, debouncedFetchSuggestion)
+watch(() => form.value.projects?.[0]?.project_id, debouncedFetchSuggestion)
 
 async function loadCategories() {
   const { data } = await api.get('/categories')
@@ -165,6 +252,9 @@ async function submit() {
       counterparty_free: null, vehicle_id: null
     }
     subcategories.value = []
+    // S10: reset del estado de sugerencia tras submit exitoso
+    suggestion.value = null
+    userEditedCategory.value = false
   } catch (e) {
     error.value = e.response?.data?.detail || 'Error al registrar la transacción'
   } finally {
