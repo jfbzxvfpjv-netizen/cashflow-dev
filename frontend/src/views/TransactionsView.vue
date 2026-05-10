@@ -93,6 +93,8 @@
               {{ t.type === 'income' ? '+' : '-' }}{{ Number(t.amount).toLocaleString() }}
             </td>
             <td class="px-3 py-2 text-center">
+              <span v-if="t.imported"
+                    class="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs mr-1">IMPORTADA</span>
               <span v-if="t.approval_status === 'pending_approval'"
                     class="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs">Pendiente</span>
               <span v-else-if="t.approval_status === 'authorized'"
