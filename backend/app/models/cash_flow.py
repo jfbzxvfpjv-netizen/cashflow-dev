@@ -9,7 +9,7 @@ from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, Numeric, Boolean, Text, Date,
     DateTime, ForeignKey, CheckConstraint, UniqueConstraint,
-    JSON,
+    JSON, LargeBinary,
 )
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -187,6 +187,9 @@ class TransactionAttachment(Base):
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     locked = Column(Boolean, default=False)
+    # M11 — campos de enriquecimiento
+    kind = Column(String(20), nullable=True)
+    sha256_hash = Column(String(64), nullable=True)
 
 
 # ── transaction_signatures ──────────────────────────────────────────────────
@@ -200,6 +203,18 @@ class TransactionSignature(Base):
     signer_name = Column(String(100), nullable=False)
     signature_data = Column(Text, nullable=False)
     signed_at = Column(DateTime, default=datetime.utcnow)
+    # M11 — campos de enriquecimiento
+    status = Column(String(15), nullable=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
+    partner_id = Column(Integer, ForeignKey("partners.id"), nullable=True)
+    sha256_hash = Column(String(64), nullable=True)
+    device_model = Column(String(50), nullable=True)
+    width_px = Column(Integer, nullable=True)
+    height_px = Column(Integer, nullable=True)
+    duration_ms = Column(Integer, nullable=True)
+    fss_data = Column(LargeBinary, nullable=True)
+    captured_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("transaction_id", "signer_type", name="uq_tx_signer"),

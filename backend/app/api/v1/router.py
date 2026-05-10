@@ -69,6 +69,8 @@ api_router.include_router(integrity_router)
 # --- Parche M6: Adjuntos ---
 from app.routers.attachments import router as attachments_router
 api_router.include_router(attachments_router)
+from app.routers.signatures import router as signatures_router
+api_router.include_router(signatures_router)
 
 from app.routers.import_router import router as import_router
 api_router.include_router(import_router)

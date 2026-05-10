@@ -17,6 +17,22 @@ class TransactionProjectIn(BaseModel):
     work_id: int
 
 
+class SignatureCreateInline(BaseModel):
+    """Firma capturada al mismo tiempo que se crea la transacción (M11)."""
+    signer_type: str = Field(..., pattern="^(employee|supplier|partner|free_text)$")
+    signer_name: str = Field(..., max_length=100)
+    signature_data: str = Field(..., description="PNG en base64")
+    status: Optional[str] = "valid"
+    employee_id: Optional[int] = None
+    supplier_id: Optional[int] = None
+    partner_id: Optional[int] = None
+    device_model: Optional[str] = None
+    width_px: Optional[int] = None
+    height_px: Optional[int] = None
+    duration_ms: Optional[int] = None
+    fss_data_b64: Optional[str] = None
+
+
 class TransactionCreate(BaseModel):
     """Payload para registrar una transacción nueva."""
     category_id: int
@@ -32,6 +48,7 @@ class TransactionCreate(BaseModel):
     vehicle_id: Optional[int] = None
     transaction_type: str = "normal"
     notes: Optional[str] = None
+    signature: Optional[SignatureCreateInline] = None
 
     @field_validator("counterparty_free")
     @classmethod

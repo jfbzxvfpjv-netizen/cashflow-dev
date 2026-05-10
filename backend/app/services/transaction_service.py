@@ -205,6 +205,48 @@ class TransactionService:
             details={"reference": reference, "amount": str(data["amount"]), "type": data["type"]}
         ))
 
+        # M11 — Validacion bloqueante y creacion atomica de firma
+        has_external = bool(
+            data.get("supplier_id") or data.get("employee_id")
+            or data.get("partner_id") or data.get("counterparty_free")
+        )
+        sig_data = data.get("signature")
+        if approval_status == "approved" and has_external:
+            if not sig_data:
+                raise ValueError(
+                    "Esta transaccion tiene contraparte externa y se aprueba directamente: "
+                    "se requiere firma del firmante (M11)."
+                )
+            try:
+                png_bytes = __import__("base64").b64decode(sig_data["signature_data"])
+            except Exception:
+                raise ValueError("signature_data no es base64 valido")
+            sha256 = __import__("hashlib").sha256(png_bytes).hexdigest()
+            fss_bytes = None
+            if sig_data.get("fss_data_b64"):
+                try:
+                    fss_bytes = __import__("base64").b64decode(sig_data["fss_data_b64"])
+                except Exception:
+                    raise ValueError("fss_data_b64 no es base64 valido")
+            sig = TransactionSignature(
+                transaction_id=txn.id,
+                signer_type=sig_data["signer_type"],
+                signer_name=sig_data["signer_name"],
+                signature_data=sig_data["signature_data"],
+                status=sig_data.get("status") or "valid",
+                employee_id=sig_data.get("employee_id"),
+                supplier_id=sig_data.get("supplier_id"),
+                partner_id=sig_data.get("partner_id"),
+                sha256_hash=sha256,
+                device_model=sig_data.get("device_model"),
+                width_px=sig_data.get("width_px"),
+                height_px=sig_data.get("height_px"),
+                duration_ms=sig_data.get("duration_ms"),
+                fss_data=fss_bytes,
+                captured_by_user_id=user.id,
+            )
+            db.add(sig)
+
         db.commit()
         db.refresh(txn)
         return txn
@@ -447,6 +489,20 @@ class TransactionService:
         # Verificar que el gestor pertenece a la delegación
         if user.role == "gestor" and txn.delegacion != user.delegacion:
             raise ValueError("Sin acceso a transacciones de otra delegación")
+
+        # M11 — Validacion bloqueante: contraparte externa requiere firma
+        has_external = bool(
+            txn.supplier_id or txn.employee_id or txn.partner_id or txn.counterparty_free
+        )
+        if has_external:
+            sig_count = db.query(TransactionSignature).filter(
+                TransactionSignature.transaction_id == txn.id
+            ).count()
+            if sig_count == 0:
+                raise ValueError(
+                    "Esta transaccion tiene contraparte externa y no puede ejecutarse "
+                    "sin firma del firmante (M11)."
+                )
 
         now = datetime.utcnow()
         txn.approval_status = "approved"
