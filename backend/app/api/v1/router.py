@@ -49,15 +49,6 @@ api_router.include_router(config_router)
 api_router.include_router(sessions_router)
 api_router.include_router(bank_withdrawals_router)
 
-# M5 — Sesiones, configuración y retiradas bancarias
-from app.routers.config import router as config_router
-from app.routers.sessions import router as sessions_router
-from app.routers.bank_withdrawals import router as bank_withdrawals_router
-
-api_router.include_router(config_router)
-api_router.include_router(sessions_router)
-api_router.include_router(bank_withdrawals_router)
-
 # --- M6: Transacciones, aprobaciones e integridad ---
 from app.routers.transactions import router as transactions_router
 api_router.include_router(transactions_router)
