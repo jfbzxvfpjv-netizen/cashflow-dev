@@ -96,7 +96,11 @@ export function useFingerprintCapture(config = {}) {
 
     error.value = null
     try {
-      await reader.startAcquisition(SampleFormat.PngImage)
+      // SampleFormat.Raw - bitmap grayscale 8bpp con cabecera propietaria DP.
+      // Intermediate devuelve template FMD no procesable por SourceAFIS sin
+      // libreria comercial. Raw es bitmap que el backend convierte a PNG via
+      // dp_format.try_convert_dp_to_png() antes de pasarlo al motor SourceAFIS.
+      await reader.startAcquisition(SampleFormat.Raw)
       captureTimeout = setTimeout(() => {
         if (state.value === 'capturing') {
           stopCapture()
@@ -217,15 +221,27 @@ export function useFingerprintCapture(config = {}) {
     error.value = e?.error || e?.message || 'Error reportado por el lector'
   }
 
-  async function processSample(b64) {
-    lastSample.value = b64
+  async function processSample(rawSample) {
+    // El SDK de DigitalPersona devuelve cada muestra como objeto {Data, Header, Version}.
+    // Data es el payload real (base64Url del template FMD propietario DP).
+    // Header trae metadatos: FormatOwner=51 (DigitalPersona Inc.), Type=1 (Image) o 2 (Template).
+    // Si la muestra es un objeto con Data string, hacemos extraccion del campo Data.
+    let imageB64 = rawSample
+    let formatHint = 'png'
+    if (typeof rawSample === 'object' && rawSample !== null && typeof rawSample.Data === 'string') {
+      imageB64 = rawSample.Data
+      const t = rawSample.Header && rawSample.Header.Type
+      formatHint = t === 2 ? 'dp_template' : (t === 1 ? 'dp_raw' : 'unknown')
+    }
+
+    lastSample.value = imageB64
     state.value = 'sample_received'
 
     if (autoQualityCheck) {
       try {
         const { data } = await api.post('/fingerprints/quality', {
-          image_b64: b64,
-          image_format: 'png',
+          image_b64: imageB64,
+          image_format: formatHint,
         })
         lastQuality.value = data.quality_score ?? null
         lastMinutiae.value = data.minutiae_count ?? null

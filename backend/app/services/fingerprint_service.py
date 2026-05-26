@@ -12,6 +12,7 @@ from app.models.catalogs import Employee, Supplier
 from app.models.user import User
 from app.models.audit_log import AuditLog
 from app.services.fingerprint_engine import get_engine, FingerprintEngineError
+from app.services import dp_format
 
 
 # Configuracion via env
@@ -26,6 +27,21 @@ VALID_FINGER_POSITIONS = {
 
 
 def _safe_b64decode(s: str, label: str = "image_b64") -> bytes:
+    """Decodifica image_b64 a bytes procesables por SourceAFIS.
+
+    Detecta automaticamente envelope DigitalPersona Raw (estructura
+    base64(JSON{Compression, Data})) y lo convierte a PNG via dp_format.
+    Si no es DP, sigue como base64 estandar (PNG ya proporcionado, dummy
+    de test, etc).
+    """
+    # Intentar conversion DP -> PNG si el contenido es envelope DigitalPersona
+    try:
+        png_bytes = dp_format.try_convert_dp_to_png(s)
+        if png_bytes is not None:
+            return png_bytes
+    except Exception:
+        # No es DP o conversion fallo; caer al flujo base64 estandar
+        pass
     try:
         return base64.b64decode(s)
     except Exception:

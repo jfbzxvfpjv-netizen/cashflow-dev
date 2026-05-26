@@ -111,8 +111,27 @@
       </div>
     </div>
 
-    <!-- Preview muestra recibida -->
-    <div v-if="lastSample" class="bg-white rounded-lg shadow p-4">
+    <!-- Diagnostico de muestra (siempre visible cuando hay muestra) -->
+    <div v-if="sampleDebugInfo" class="bg-white rounded-lg shadow p-4 mb-4">
+      <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">
+        Diagnostico de muestra (debug)
+      </h2>
+      <dl class="grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <dt class="text-gray-500 text-xs">Tipo dato</dt>
+          <dd class="font-mono font-medium">{{ sampleDebugInfo.type }}</dd>
+        </div>
+        <div>
+          <dt class="text-gray-500 text-xs">Tamano</dt>
+          <dd class="font-mono font-medium">{{ sampleDebugInfo.length }}</dd>
+        </div>
+      </dl>
+      <p class="mt-3 text-xs text-gray-700 font-semibold">Preview (primeros 100 chars):</p>
+      <code class="block bg-gray-50 p-2 mt-1 rounded font-mono break-all text-xs">{{ sampleDebugInfo.preview }}</code>
+    </div>
+
+    <!-- Preview imagen (solo si es string base64 valida) -->
+    <div v-if="typeof lastSample === 'string' && lastSample.length > 0" class="bg-white rounded-lg shadow p-4">
       <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">
         Ultima muestra recibida
       </h2>
@@ -149,6 +168,73 @@ const DUMMY_PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42
 function injectDummyPng() {
   simulateSample(DUMMY_PNG_1X1)
 }
+
+const sampleDebugInfo = computed(() => {
+  const s = lastSample.value
+  if (s === null || s === undefined) return null
+  const t = typeof s
+  if (t === 'string') {
+    return {
+      type: 'string',
+      length: s.length + ' caracteres',
+      preview: s.slice(0, 300) + (s.length > 300 ? '...' : '')
+    }
+  }
+  if (t === 'object') {
+    try {
+      const json = JSON.stringify(s, null, 2)
+      let keys
+      if (Array.isArray(s)) {
+        keys = 'Array(' + s.length + ')'
+        if (s.length > 0 && typeof s[0] === 'object' && s[0] !== null) {
+          keys += ' - elem[0] keys: ' + Object.keys(s[0]).join(', ')
+        }
+      } else {
+        keys = 'Object - keys: ' + Object.keys(s).join(', ')
+      }
+
+      // Preview por key (cada propiedad truncada individualmente)
+      const target = Array.isArray(s) && s.length > 0 && typeof s[0] === 'object'
+        ? s[0]
+        : (typeof s === 'object' && !Array.isArray(s) ? s : null)
+
+      let perKey = ''
+      if (target !== null) {
+        perKey = Object.keys(target).map(k => {
+          const v = target[k]
+          let vstr
+          if (typeof v === 'string') {
+            vstr = v.slice(0, 80) + (v.length > 80 ? ' ...[' + v.length + ' chars total]' : '')
+          } else if (typeof v === 'object' && v !== null) {
+            vstr = JSON.stringify(v).slice(0, 150)
+          } else {
+            vstr = JSON.stringify(v)
+          }
+          return '[' + k + ']: ' + vstr
+        }).join('\n\n')
+      } else {
+        perKey = json.slice(0, 600)
+      }
+
+      return {
+        type: keys,
+        length: json.length + ' bytes JSON',
+        preview: perKey
+      }
+    } catch (e) {
+      return {
+        type: 'object (no serializable: ' + e.message + ')',
+        length: 'N/A',
+        preview: String(s).slice(0, 200)
+      }
+    }
+  }
+  return {
+    type: t,
+    length: 'N/A',
+    preview: String(s).slice(0, 100)
+  }
+})
 
 const stateColorClass = computed(() => {
   switch (state.value) {
