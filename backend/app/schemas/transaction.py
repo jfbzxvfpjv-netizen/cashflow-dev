@@ -21,7 +21,7 @@ class SignatureCreateInline(BaseModel):
     """Firma capturada al mismo tiempo que se crea la transacción (M11)."""
     signer_type: str = Field(..., pattern="^(employee|supplier|partner|free_text)$")
     signer_name: str = Field(..., max_length=100)
-    signature_data: str = Field(..., description="PNG en base64")
+    signature_data: Optional[str] = Field(None, description="PNG en base64 (requerido para wacom)")
     status: Optional[str] = "valid"
     employee_id: Optional[int] = None
     supplier_id: Optional[int] = None
@@ -31,6 +31,13 @@ class SignatureCreateInline(BaseModel):
     height_px: Optional[int] = None
     duration_ms: Optional[int] = None
     fss_data_b64: Optional[str] = None
+    # M11 - Metodo de firma y campos especificos por metodo
+    signature_method: Optional[str] = "wacom"
+    fingerprint_score: Optional[int] = None
+    fingerprint_finger_position: Optional[str] = None
+    fingerprint_attempts: Optional[int] = None
+    fingerprint_failed_scores: Optional[List[int]] = None
+    signer_user_id: Optional[int] = None
 
 
 class TransactionCreate(BaseModel):

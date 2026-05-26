@@ -219,6 +219,8 @@ class TransactionService:
                 )
             sig_method = sig_data.get("signature_method", "wacom")
             if sig_method in ("wacom", "wacom_provisional"):
+                if not sig_data.get("signature_data"):
+                    raise ValueError("signature.signature_data requerido para method=wacom")
                 try:
                     png_bytes = __import__("base64").b64decode(sig_data["signature_data"])
                 except Exception:
@@ -255,8 +257,14 @@ class TransactionService:
                     raise ValueError("signature.fingerprint_score requerido para method=fingerprint")
                 if not sig_data.get("fingerprint_finger_position"):
                     raise ValueError("signature.fingerprint_finger_position requerido para method=fingerprint")
-                if not sig_data.get("signer_user_id"):
-                    raise ValueError("signature.signer_user_id requerido para method=fingerprint")
+                # Resolver signer_user_id desde employee_id si no viene en el payload
+                _signer_user_id = sig_data.get("signer_user_id")
+                if not _signer_user_id and sig_data.get("employee_id"):
+                    _emp = db.query(Employee).filter(Employee.id == sig_data["employee_id"]).first()
+                    if _emp and _emp.user_id:
+                        _signer_user_id = _emp.user_id
+                if not _signer_user_id:
+                    raise ValueError("signature.signer_user_id no resuelto (employee sin user vinculado)")
                 sig = TransactionSignature(
                     transaction_id=txn.id,
                     signer_type=sig_data["signer_type"],
@@ -269,7 +277,7 @@ class TransactionService:
                     fingerprint_score=sig_data["fingerprint_score"],
                     fingerprint_finger_position=sig_data["fingerprint_finger_position"],
                     fingerprint_attempts=sig_data.get("fingerprint_attempts", 1),
-                    signer_user_id=sig_data["signer_user_id"],
+                    signer_user_id=_signer_user_id,
                     status="valid",
                 )
                 db.add(sig)

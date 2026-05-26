@@ -99,12 +99,24 @@
         </select>
       </div>
 
+      <!-- F5: Firma de la contraparte (SignatureSection polimorfico) -->
+      <div v-if="contraparteType">
+        <label class="block text-sm font-medium mb-2">Firma de la contraparte *</label>
+        <SignatureSection :contraparte-type="contraparteType"
+                          :contraparte-id="contraparteId"
+                          @signature-ready="onSignatureReady" />
+      </div>
+      <div v-else class="bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded p-3">
+        Selecciona primero una contraparte para capturar la firma.
+      </div>
+
       <div class="flex justify-end gap-2 pt-2">
         <router-link to="/transactions" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm">
           Cancelar
         </router-link>
-        <button type="submit" :disabled="submitting"
-                class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50">
+        <button type="submit" :disabled="submitting || !signaturePayload"
+                class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50"
+                :title="!signaturePayload ? 'Captura la firma antes de registrar' : ''">
           {{ submitting ? 'Registrando...' : 'Registrar Transacción' }}
         </button>
       </div>
@@ -113,13 +125,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/services/api'
 import transactionService from '@/services/transactionService'
 import suggestionService from '@/services/suggestionService'
 import ProjectWorkSelector from '@/components/ProjectWorkSelector.vue'
 import CounterpartySelector from '@/components/CounterpartySelector.vue'
+import SignatureSection from '@/components/admin/SignatureSection.vue'
 import { useAuthStore } from '@/stores/auth'
 
 // H-Role guard: solo gestor accede a /transactions/new
@@ -151,6 +164,33 @@ const submitting = ref(false)
 // === S10: Sugerencias de categorización ===
 const suggestion = ref(null)
 const userEditedCategory = ref(false)
+
+// F5: estado de la firma capturada por SignatureSection
+const signaturePayload = ref(null)
+
+const contraparteType = computed(() => {
+  if (form.value.supplier_id !== null && form.value.supplier_id !== undefined) return 'supplier'
+  if (form.value.employee_id !== null && form.value.employee_id !== undefined) return 'employee'
+  if (form.value.partner_id !== null && form.value.partner_id !== undefined) return 'partner'
+  if (form.value.counterparty_free !== null && form.value.counterparty_free !== '' && form.value.counterparty_free !== undefined) return 'free'
+  return null
+})
+
+const contraparteId = computed(() => {
+  if (contraparteType.value === 'supplier') return form.value.supplier_id
+  if (contraparteType.value === 'employee') return form.value.employee_id
+  if (contraparteType.value === 'partner') return form.value.partner_id
+  return null
+})
+
+function onSignatureReady(payload) {
+  signaturePayload.value = payload
+}
+
+// Si cambia la contraparte, invalidamos la firma anterior
+watch([contraparteType, contraparteId], () => {
+  signaturePayload.value = null
+})
 let suggestionDebounceTimer = null
 
 async function fetchSuggestion() {
@@ -239,11 +279,59 @@ function onCounterpartyChange(cp) {
 async function submit() {
   error.value = ''
   success.value = ''
+
+  // F5: la firma es obligatoria para registrar la transaccion
+  if (!signaturePayload.value) {
+    error.value = 'Falta capturar la firma de la contraparte'
+    return
+  }
+
   submitting.value = true
   try {
-    const { data } = await transactionService.create(form.value)
+    // Mapeo contraparteType (frontend) -> signer_type (backend)
+    const signerTypeMap = {
+      supplier: 'supplier',
+      employee: 'employee',
+      partner: 'partner',
+      free: 'free_text'
+    }
+    const signerType = signerTypeMap[contraparteType.value]
+
+    // Strip prefijo data:image/png;base64, si lo lleva el wacom_image_b64
+    const stripDataUrl = (b64) => {
+      if (!b64) return null
+      const idx = b64.indexOf(',')
+      return idx >= 0 ? b64.slice(idx + 1) : b64
+    }
+
+    // Nombre del firmante: payload primero, fallback al counterparty_free
+    const signerName = signaturePayload.value.signer_name
+      || form.value.counterparty_free
+      || 'Sin nombre'
+
+    // Construir el objeto signature anidado segun el contrato del backend
+    const signature = {
+      signer_type: signerType,
+      signer_name: signerName,
+      signature_method: signaturePayload.value.signature_method,
+      employee_id: form.value.employee_id,
+      supplier_id: form.value.supplier_id,
+      partner_id: form.value.partner_id,
+    }
+
+    if (signaturePayload.value.signature_method === 'fingerprint') {
+      signature.fingerprint_score = signaturePayload.value.fingerprint_score
+      signature.fingerprint_finger_position = signaturePayload.value.fingerprint_finger_position
+      signature.fingerprint_attempts = signaturePayload.value.fingerprint_attempts
+    } else {
+      // wacom o wacom_provisional
+      signature.signature_data = stripDataUrl(signaturePayload.value.wacom_image_b64)
+      signature.fingerprint_failed_scores = signaturePayload.value.fingerprint_failed_scores
+    }
+
+    const body = { ...form.value, signature }
+    const { data } = await transactionService.create(body)
     router.push('/transactions/' + data.id)
-    // Reset del formulario
     form.value = {
       type: 'expense', amount: null, concept: '',
       category_id: null, subcategory_id: null,
@@ -252,7 +340,7 @@ async function submit() {
       counterparty_free: null, vehicle_id: null
     }
     subcategories.value = []
-    // S10: reset del estado de sugerencia tras submit exitoso
+    signaturePayload.value = null
     suggestion.value = null
     userEditedCategory.value = false
   } catch (e) {
