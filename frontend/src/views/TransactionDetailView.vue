@@ -179,6 +179,10 @@
         </div>
 
         <div class="flex gap-2 pt-2 border-t flex-wrap">
+          <button @click="downloadReceipt"
+                  class="px-3 py-1.5 bg-purple-600 text-white rounded text-sm hover:bg-purple-700">
+            📄 Imprimir recibo
+          </button>
           <button v-if="canEdit"
                   @click="openEdit"
                   class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
@@ -231,6 +235,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import transactionService from '@/services/transactionService'
+import api from '@/services/api'
 import EditTimer from '@/components/EditTimer.vue'
 import FileUploader from '@/components/FileUploader.vue'
 
@@ -481,4 +486,20 @@ async function cancelTxn() {
 }
 
 onMounted(() => load())
+
+// M11 F-extension: descarga recibo PDF de la transaccion en nueva pestana
+async function downloadReceipt() {
+  try {
+    const response = await api.get(`/reports/transaction/${txn.value.id}/receipt`, {
+      responseType: 'blob'
+    })
+    const blob = new Blob([response.data], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank')
+    setTimeout(() => URL.revokeObjectURL(url), 10000)
+  } catch (e) {
+    const detail = e.response?.data?.detail || e.message || 'Error desconocido'
+    alert('No se pudo generar el recibo: ' + detail)
+  }
+}
 </script>

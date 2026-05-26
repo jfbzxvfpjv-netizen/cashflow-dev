@@ -12,11 +12,11 @@ from sqlalchemy import cast, Date, func
 from sqlalchemy.orm import Session
 
 from app.models.cash_flow import (
-    CashSession, Transaction, SystemConfig
+    CashSession, Transaction, SystemConfig, TransactionSignature, TransactionProject
 )
 from app.models.catalogs import (
     TransactionCategory, TransactionSubcategory,
-    Supplier, Employee, Partner
+    Supplier, Employee, Partner, Project, Work, Vehicle
 )
 from app.models.user import User
 
@@ -542,3 +542,232 @@ class ReportService:
         wb.save(buffer)
         buffer.seek(0)
         return buffer.getvalue()
+
+    # ============================================================
+    # M11 - Recibo individual de transaccion (F-extension)
+    # ============================================================
+
+    @staticmethod
+    def _number_to_words_es(n: int) -> str:
+        """Convierte un entero positivo a palabras en español.
+        Soporta hasta cientos de millones (suficiente para XAF)."""
+        if n == 0:
+            return "cero"
+        UNIDADES = ['', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete',
+                    'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce',
+                    'quince', 'dieciseis', 'diecisiete', 'dieciocho', 'diecinueve',
+                    'veinte', 'veintiuno', 'veintidos', 'veintitres', 'veinticuatro',
+                    'veinticinco', 'veintiseis', 'veintisiete', 'veintiocho', 'veintinueve']
+        DECENAS = ['', '', '', 'treinta', 'cuarenta', 'cincuenta', 'sesenta',
+                   'setenta', 'ochenta', 'noventa']
+        CENTENAS = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos',
+                    'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos']
+
+        def menor_1000(n):
+            if n < 30:
+                return UNIDADES[n]
+            if n < 100:
+                d, u = divmod(n, 10)
+                if u == 0:
+                    return DECENAS[d]
+                return DECENAS[d] + ' y ' + UNIDADES[u]
+            if n == 100:
+                return 'cien'
+            cc, r = divmod(n, 100)
+            if r == 0:
+                return CENTENAS[cc]
+            return CENTENAS[cc] + ' ' + menor_1000(r)
+
+        def convertir(n):
+            if n < 1000:
+                return menor_1000(n)
+            if n < 1_000_000:
+                miles, resto = divmod(n, 1000)
+                pre = 'mil' if miles == 1 else menor_1000(miles) + ' mil'
+                return pre if resto == 0 else pre + ' ' + menor_1000(resto)
+            if n < 1_000_000_000:
+                millones, resto = divmod(n, 1_000_000)
+                pre = 'un millon' if millones == 1 else convertir(millones) + ' millones'
+                return pre if resto == 0 else pre + ' ' + convertir(resto)
+            return str(n)
+
+        return convertir(n)
+
+    @classmethod
+    def generate_transaction_receipt_pdf(cls, db: Session, txn_id: int,
+                                          requesting_user: User):
+        """Genera un recibo PDF de una transaccion individual.
+        Retorna bytes (PDF) o None si no existe / sin acceso."""
+        txn = db.query(Transaction).filter(Transaction.id == txn_id).first()
+        if not txn:
+            return None
+        # Control de acceso: gestor solo su delegacion
+        if requesting_user.role == 'gestor' and txn.delegacion != requesting_user.delegacion:
+            return None
+
+        # Cargar relaciones
+        cat = db.query(TransactionCategory).filter(TransactionCategory.id == txn.category_id).first()
+        subcat = db.query(TransactionSubcategory).filter(TransactionSubcategory.id == txn.subcategory_id).first()
+        gestor = db.query(User).filter(User.id == txn.user_id).first()
+        contraparte = cls._get_contraparte(db, txn) or '(sin contraparte)'
+
+        # Proyectos asociados
+        tps = db.query(TransactionProject).filter(TransactionProject.transaction_id == txn.id).all()
+        proyectos_html = ""
+        for tp in tps:
+            proj = db.query(Project).filter(Project.id == tp.project_id).first()
+            work = db.query(Work).filter(Work.id == tp.work_id).first()
+            proyectos_html += f"{proj.name if proj else '?'} / {work.name if work else '?'}<br>"
+        if not proyectos_html:
+            proyectos_html = "(sin proyecto)"
+
+        # Vehiculo opcional
+        vehiculo_html = ""
+        if txn.vehicle_id:
+            v = db.query(Vehicle).filter(Vehicle.id == txn.vehicle_id).first()
+            if v:
+                vehiculo_html = f"{v.plate} {v.brand or ''}".strip()
+
+        # Importe en letras
+        amount_int = int(txn.amount)
+        amount_words = cls._number_to_words_es(amount_int).capitalize()
+        tipo_label = "INGRESO" if txn.type == "income" else "EGRESO"
+        signo = "+" if txn.type == "income" else "-"
+        color_tipo = "#16a34a" if txn.type == "income" else "#dc2626"
+
+        # Firma
+        signature = db.query(TransactionSignature).filter(
+            TransactionSignature.transaction_id == txn.id
+        ).first()
+
+        sig_provisional_banner = ""
+        if signature:
+            metodo = signature.signature_method or "wacom"
+            firmante = signature.signer_name or "(sin nombre)"
+            firmado_at = signature.signed_at.strftime("%d/%m/%Y %H:%M") if signature.signed_at else ""
+            hash_corto = (signature.sha256_hash or "")[:16] + "..." if signature.sha256_hash else "(no hash)"
+
+            if metodo == "wacom_provisional":
+                sig_provisional_banner = """
+        <div style="background:#fee2e2; border:2px solid #dc2626; padding:8px;
+                    text-align:center; margin:10px 0; font-weight:bold; color:#991b1b;">
+            FIRMA PROVISIONAL - PENDIENTE DE VERIFICACION BIOMETRICA
+        </div>"""
+
+            if metodo == "fingerprint":
+                # Sello biometrico
+                dedo = signature.fingerprint_finger_position or "(dedo no registrado)"
+                score = signature.fingerprint_score or 0
+                sig_body = f"""
+                <div style="border:2px solid #1e40af; padding:15px; text-align:center;
+                            background:#eff6ff; border-radius:6px;">
+                    <div style="font-size:24px; color:#1e40af;">[X] VERIFICADO BIOMETRICAMENTE</div>
+                    <div style="margin-top:8px; font-size:12px;">
+                        Dedo: <strong>{dedo}</strong> &nbsp;|&nbsp;
+                        Calidad de match: <strong>{score}/100</strong>
+                    </div>
+                </div>"""
+            else:
+                # wacom o wacom_provisional: imagen de la firma
+                if signature.signature_data:
+                    sig_body = f"""
+                <div style="border:1px solid #cbd5e1; padding:10px; text-align:center; background:#fff;">
+                    <img src="data:image/png;base64,{signature.signature_data}"
+                         style="max-height:120px; max-width:100%;" />
+                </div>"""
+                else:
+                    sig_body = "<p>(firma no disponible)</p>"
+
+            sig_html = f"""
+            {sig_provisional_banner}
+            <h3 style="margin-top:15px; color:#1e40af; font-size:13px;">Firma del firmante</h3>
+            {sig_body}
+            <table style="width:100%; margin-top:8px; font-size:10px;">
+                <tr>
+                    <td><strong>Firmante:</strong> {firmante}</td>
+                    <td style="text-align:right;"><strong>Fecha firma:</strong> {firmado_at}</td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="font-size:9px; color:#64748b;">
+                        Metodo: {metodo} &nbsp;|&nbsp; SHA-256: {hash_corto}
+                    </td>
+                </tr>
+            </table>"""
+        else:
+            sig_html = """<div style="background:#fef3c7; border:1px solid #f59e0b;
+                          padding:10px; text-align:center; color:#92400e;">
+                          Esta transaccion no tiene firma registrada.
+                          </div>"""
+
+        # HTML completo
+        fecha_txn = txn.created_at.strftime("%d/%m/%Y %H:%M") if txn.created_at else ""
+        fecha_recibo = datetime.utcnow().strftime("%d/%m/%Y %H:%M")
+        gestor_nombre = gestor.full_name if gestor else "?"
+
+        html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+    @page {{ size: A4 portrait; margin: 15mm; }}
+    body {{ font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #1e293b; }}
+    .header {{ text-align:center; border-bottom:3px solid #1e40af; padding-bottom:10px; margin-bottom:15px; }}
+    .header h1 {{ font-size:20px; color:#1e40af; margin:0; }}
+    .header h2 {{ font-size:13px; color:#475569; margin:5px 0 0 0; font-weight:normal; }}
+    .header .delegacion {{ font-size:11px; color:#64748b; margin-top:3px; }}
+    .ref-box {{ background:#1e40af; color:#fff; padding:8px 12px; text-align:center;
+                font-size:13px; font-weight:bold; margin-bottom:15px; }}
+    table.datos {{ width:100%; border-collapse:collapse; margin-bottom:10px; }}
+    table.datos td {{ padding:6px 8px; border-bottom:1px solid #e2e8f0; vertical-align:top; }}
+    table.datos td.label {{ width:35%; font-weight:600; color:#475569; background:#f8fafc; }}
+    .importe-grande {{ font-size:24px; font-weight:bold; text-align:center;
+                       padding:12px; background:#f1f5f9; border-radius:6px;
+                       color:{color_tipo}; margin:10px 0; }}
+    .importe-letras {{ font-style:italic; text-align:center; padding:6px;
+                       font-size:11px; color:#475569; }}
+    .footer {{ margin-top:20px; padding-top:10px; border-top:1px solid #cbd5e1;
+               font-size:9px; color:#64748b; text-align:center; }}
+    .legal {{ margin-top:8px; font-size:8px; color:#94a3b8; }}
+</style>
+</head><body>
+    <div class="header">
+        <h1>R2i Network</h1>
+        <h2>Recibo de Transaccion</h2>
+        <div class="delegacion">Delegacion: {txn.delegacion}</div>
+    </div>
+
+    <div class="ref-box">
+        Ref.: {txn.reference_number} &nbsp;|&nbsp; {tipo_label}
+    </div>
+
+    <div class="importe-grande">{signo} {amount_int:,} XAF</div>
+    <div class="importe-letras">{amount_words} francos CFA</div>
+
+    <table class="datos">
+        <tr><td class="label">Fecha de la transaccion</td><td>{fecha_txn}</td></tr>
+        <tr><td class="label">Concepto</td><td>{txn.concept}</td></tr>
+        <tr><td class="label">Categoria / Subcategoria</td>
+            <td>{cat.name if cat else '?'} / {subcat.name if subcat else '?'}</td></tr>
+        <tr><td class="label">Proyecto / Obra</td><td>{proyectos_html}</td></tr>
+        {'<tr><td class="label">Vehiculo</td><td>' + vehiculo_html + '</td></tr>' if vehiculo_html else ''}
+        <tr><td class="label">Contraparte</td><td>{contraparte}</td></tr>
+    </table>
+
+    {sig_html}
+
+    <div class="footer">
+        Registrado por: <strong>{gestor_nombre}</strong>
+        &nbsp;|&nbsp; Recibo generado: {fecha_recibo}
+        <div class="legal">
+            Este documento es generado automaticamente por el sistema Caja R2i.
+            La firma incluida es electronica y la integridad del registro puede
+            verificarse mediante el hash SHA-256 del documento original.
+        </div>
+    </div>
+</body></html>"""
+
+        try:
+            from weasyprint import HTML as WeasyHTML
+            return WeasyHTML(string=html).write_pdf()
+        except Exception as e:
+            # Fallback HTML si WeasyPrint falla
+            return html.encode('utf-8')
+

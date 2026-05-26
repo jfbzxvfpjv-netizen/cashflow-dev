@@ -117,3 +117,29 @@ async def report_period(
                 "Content-Disposition": f"attachment; filename=informe_periodo_{date_start}_{date_end}.{ext}"
             }
         )
+
+@router.get("/transaction/{txn_id}/receipt")
+async def transaction_receipt(
+    txn_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Recibo PDF de una transaccion individual (M11 F-extension).
+    Accesible por cualquier usuario autenticado; el gestor solo ve
+    transacciones de su delegacion (control dentro del service)."""
+    content = ReportService.generate_transaction_receipt_pdf(db, txn_id, current_user)
+    if not content:
+        raise HTTPException(status_code=404, detail="Transaccion no encontrada o sin acceso")
+    # Detectar PDF real vs HTML fallback (igual que session)
+    if content[:5] == b'%PDF-':
+        media = "application/pdf"
+        ext = "pdf"
+    else:
+        media = "text/html"
+        ext = "html"
+    return Response(
+        content=content,
+        media_type=media,
+        headers={"Content-Disposition": f'inline; filename="recibo_txn_{txn_id}.{ext}"'}
+    )
+
