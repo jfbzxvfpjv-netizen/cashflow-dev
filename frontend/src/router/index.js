@@ -95,20 +95,8 @@ const routes = [
       component: () => import('@/views/admin/AdminFingerprintsView.vue'),
       meta: { requiresAuth: true, roles: ['admin'] }
     },
-    {
-      path: '/admin/fingerprints/test',
-      name: 'admin-fingerprints-test',
-      component: () => import('@/views/admin/AdminFingerprintsTestView.vue'),
-      meta: { requiresAuth: true, roles: ['admin'] }
-    },
-
-    {
-      path: '/admin/signature-test',
-      name: 'admin-fingerprints-test',
-      component: () => import('@/views/admin/AdminSignatureTestView.vue'),
-      meta: { requiresAuth: true, roles: ['admin'] }
-    },
-  // M9: Módulos financieros especiales
+    
+      // M9: Módulos financieros especiales
   { path: '/advances-loans',       name: 'AdvancesLoans',        component: AdvancesLoansView,        meta: { requiresAuth: true } },
   { path: '/retentions-deposits',  name: 'RetentionsDeposits',   component: RetentionsDepositsView,   meta: { requiresAuth: true } },
   { path: '/floats',               name: 'Floats',               component: FloatsView,               meta: { requiresAuth: true } },
