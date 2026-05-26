@@ -114,32 +114,24 @@
               <div v-if="emp.fingers_enrolled && emp.fingers_enrolled.length > 0"
                    class="flex flex-wrap gap-1">
                 <span v-for="finger in emp.fingers_enrolled" :key="finger"
-                      class="inline-flex items-center px-2 py-0.5 rounded-full text-xs
+                      class="group inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs
                              font-medium bg-blue-50 text-blue-700 border border-blue-200">
                   {{ fingerLabel(finger) }}
+                  <button @click="confirmDeleteFinger(emp, finger)"
+                          class="opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-800 transition-opacity font-bold leading-none ml-0.5"
+                          title="Eliminar este dedo">×</button>
                 </span>
               </div>
               <span v-else class="text-sm text-gray-400 italic">Sin enrolment</span>
             </td>
             <td class="px-4 py-3">
               <div class="flex items-center justify-center gap-2">
-                <button disabled
-                        class="p-1.5 text-blue-600 opacity-50 cursor-not-allowed rounded-md"
-                        title="Disponible en F3">
+                <button @click="openEnroll(emp)"
+                        class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                        title="Enrolar nuevo dedo">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M12 4v16m8-8H4"/>
-                  </svg>
-                </button>
-                <button disabled
-                        class="p-1.5 text-red-600 opacity-50 cursor-not-allowed rounded-md"
-                        title="Disponible en F3">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M19 7l-.867 12.142A2 2 0 0116.138
-                             21H7.862a2 2 0 01-1.995-1.858L5 7m5
-                             4v6m4-6v6m1-10V4a1 1 0
-                             00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                   </svg>
                 </button>
               </div>
@@ -153,12 +145,22 @@
         {{ filteredEmployees.length }} empleado{{ filteredEmployees.length !== 1 ? 's' : '' }}{{ filteredEmployees.length !== employees.length ? ` de ${employees.length}` : '' }}
       </div>
     </div>
+
+    <FingerprintEnrollDialog
+      v-if="enrollModalOpen && enrollTargetEmp"
+      :employee-id="enrollTargetEmp.employee_id"
+      :employee-name="enrollTargetEmp.full_name"
+      :existing-fingers="enrollTargetEmp.fingers_enrolled || []"
+      @close="closeEnroll"
+      @enrolled="onEnrolled"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import api from '@/services/api'
+import FingerprintEnrollDialog from '@/components/admin/FingerprintEnrollDialog.vue'
 
 // ── Estado reactivo ──────────────────────────────────────
 
@@ -173,6 +175,9 @@ const filterName = ref('')
 const statusMessage = ref('')
 const statusType = ref('info')
 
+const enrollModalOpen = ref(false)
+const enrollTargetEmp = ref(null)
+
 // ── Configuración ────────────────────────────────────────
 
 const API_BASE = '/fingerprints'
@@ -182,12 +187,12 @@ const FINGER_LABELS = {
   right_index:  'Índice D',
   right_middle: 'Medio D',
   right_ring:   'Anular D',
-  right_little: 'Meñique D',
+  right_pinky:  'Meñique D',
   left_thumb:   'Pulgar I',
   left_index:   'Índice I',
   left_middle:  'Medio I',
   left_ring:    'Anular I',
-  left_little:  'Meñique I',
+  left_pinky:   'Meñique I',
 }
 
 // ── Carga de datos ───────────────────────────────────────
@@ -265,6 +270,36 @@ const engineLabel = computed(() => {
 })
 
 // ── Utilidades ───────────────────────────────────────────
+
+function openEnroll(emp) {
+  enrollTargetEmp.value = emp
+  enrollModalOpen.value = true
+}
+
+function closeEnroll() {
+  enrollModalOpen.value = false
+  enrollTargetEmp.value = null
+}
+
+function onEnrolled({ employee_id, finger_position }) {
+  showStatus(`Huella ${fingerLabel(finger_position)} enrolada para empleado #${employee_id}`, 'success')
+  loadEmployees()
+}
+
+async function confirmDeleteFinger(emp, fingerCode) {
+  const label = fingerLabel(fingerCode)
+  if (!confirm(`Eliminar el enrolment del dedo "${label}" del empleado ${emp.full_name}?\n\nEsta accion borra las 4 plantillas asociadas y no se puede deshacer.`)) {
+    return
+  }
+  try {
+    await api.delete(`/fingerprints/employees/${emp.employee_id}/${fingerCode}`)
+    showStatus(`Dedo ${label} eliminado de ${emp.full_name}`, 'success')
+    loadEmployees()
+  } catch (err) {
+    const msg = err.response?.data?.detail || err.message || 'Error desconocido'
+    showStatus(`Error eliminando: ${msg}`, 'error')
+  }
+}
 
 function fingerLabel(code) {
   return FINGER_LABELS[code] || code

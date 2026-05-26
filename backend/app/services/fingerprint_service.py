@@ -125,7 +125,7 @@ def enroll_employee_finger(
     db.add(AuditLog(
         user_id=current_user.id,
         action="fingerprint_enroll",
-        entity_type="employee_fingerprints",
+        entity="employee_fingerprints",
         entity_id=employee_id,
         details={
             "employee_id": employee_id,
@@ -203,7 +203,7 @@ def delete_employee_finger(
         db.add(AuditLog(
             user_id=current_user.id,
             action="fingerprint_delete",
-            entity_type="employee_fingerprints",
+            entity="employee_fingerprints",
             entity_id=employee_id,
             details={
                 "employee_id": employee_id,
