@@ -134,7 +134,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import transactionService from '@/services/transactionService'
 
@@ -146,7 +147,18 @@ const currentPage = ref(1)
 const totalPages = ref(1)
 const filters = ref({
   delegacion: '', date_start: '', date_end: '', type: '', approval_status: '', concept: '',
-  category_id: '', subcategory_id: '', supplier_id: '', employee_id: ''
+  category_id: '', subcategory_id: '', supplier_id: '', employee_id: '',
+  signature_method: ''
+})
+
+const route = useRoute()
+
+// F6: reaccionar al cambio de query param signature_method incluso cuando
+// el componente NO se remonta (al clickar el badge ya estando en /transactions)
+watch(() => route.query.signature_method, (newVal) => {
+  filters.value.signature_method = newVal || ''
+  currentPage.value = 1
+  loadTransactions()
 })
 
 // --- Catálogos para selectores de filtro ---
@@ -239,6 +251,10 @@ function goToPage(p) {
 }
 
 onMounted(() => {
+  // F6: aplicar filtro desde query param si viene del badge del sidebar
+  if (route.query.signature_method) {
+    filters.value.signature_method = route.query.signature_method
+  }
   loadFilterCatalogs()
   loadTransactions()
 })

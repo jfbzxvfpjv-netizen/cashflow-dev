@@ -181,6 +181,7 @@ async def list_transactions(
     concept: Optional[str] = None,
     min_amount: Optional[float] = None,
     max_amount: Optional[float] = None,
+    signature_method: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -196,6 +197,7 @@ async def list_transactions(
         "transaction_type": transaction_type, "approval_status": approval_status,
         "imported": imported, "cancelled": cancelled,
         "concept": concept, "min_amount": min_amount, "max_amount": max_amount,
+        "signature_method": signature_method,
         "page": page, "page_size": page_size
     }
     if date_start:
@@ -217,6 +219,19 @@ async def list_transactions(
         page_size=result["page_size"],
         pages=result["pages"]
     )
+
+
+@router.get("/provisional/count")
+async def get_provisional_count(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "contable"))
+):
+    """Numero de firmas con signature_method='wacom_provisional'.
+    Usado por el sidebar para el badge de provisionales pendientes (F6)."""
+    count = db.query(TransactionSignature).filter(
+        TransactionSignature.signature_method == "wacom_provisional"
+    ).count()
+    return {"count": count}
 
 
 @router.get("/{txn_id}", response_model=TransactionDetail)

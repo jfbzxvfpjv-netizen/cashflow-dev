@@ -10,7 +10,11 @@
         <router-link :to="item.to" class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-700 hover:text-white" :class="{ 'justify-center': collapsed }"
           active-class="bg-gray-700 text-white border-l-2 border-blue-400">
           <span class="text-base" :title="collapsed ? item.label : ''">{{ item.icon }}</span>
-          <span v-if="!collapsed">{{ item.label }}</span>
+          <span v-if="!collapsed" class="flex-1">{{ item.label }}</span>
+          <span v-if="!collapsed && item.badge > 0"
+                @click.stop.prevent="goToProvisional"
+                class="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5 ml-auto cursor-pointer hover:bg-red-600"
+                :title="'Click para ver las ' + item.badge + ' provisionales pendientes'">{{ item.badge }}</span>
         </router-link>
       </template>
     </nav>
@@ -21,10 +25,38 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import api from '@/services/api'
 defineProps({ collapsed: { type: Boolean, default: false } }); defineEmits(['toggle'])
 const auth = useAuthStore()
+const router = useRouter()
+
+// F6: badge de transacciones provisionales (polling cada 60s)
+const provisionalCount = ref(0)
+let pollInterval = null
+async function fetchProvisionalCount() {
+  if (!['admin', 'contable'].includes(auth.userRole)) return
+  try {
+    const { data } = await api.get('/transactions/provisional/count')
+    provisionalCount.value = data.count || 0
+  } catch (e) {
+    // silencio en sidebar; no romper la navegacion por un fallo de polling
+  }
+}
+function goToProvisional() {
+  router.push({ path: '/transactions', query: { signature_method: 'wacom_provisional' } })
+}
+
+onMounted(() => {
+  fetchProvisionalCount()
+  pollInterval = setInterval(fetchProvisionalCount, 60000)
+})
+onUnmounted(() => {
+  if (pollInterval) clearInterval(pollInterval)
+})
+
 const menu = [
   { to:'/dashboard', label:'Panel Principal', icon:'📊', roles:[] },
   { sep:'Transacciones', to:'/transactions', label:'Transacciones', icon:'💰', roles:['admin','gestor','contable','consulta'] },
@@ -58,5 +90,14 @@ const menu = [
   { to:'/admin/fingerprints', label:'Huellas Dactilares', icon:'👆', roles:['admin'] },
   { sep:'Cuenta', to:'/change-password', label:'Cambiar Contraseña', icon:'🔑', roles:[] },
 ]
-const visible = computed(() => menu.filter(i => !i.roles || !i.roles.length || i.roles.includes(auth.userRole)))
+const visible = computed(() => menu
+  .filter(i => !i.roles || !i.roles.length || i.roles.includes(auth.userRole))
+  .map(i => {
+    // F6: inyectar badge en /transactions si el rol corresponde
+    if (i.to === '/transactions' && ['admin', 'contable'].includes(auth.userRole)) {
+      return { ...i, badge: provisionalCount.value }
+    }
+    return i
+  })
+)
 </script>

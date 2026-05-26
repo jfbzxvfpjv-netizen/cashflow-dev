@@ -654,6 +654,11 @@ class TransactionService:
             query = query.join(TransactionProject).filter(
                 TransactionProject.work_id == filters["work_id"]
             )
+        if filters.get("signature_method"):
+            query = query.join(
+                TransactionSignature,
+                TransactionSignature.transaction_id == Transaction.id
+            ).filter(TransactionSignature.signature_method == filters["signature_method"])
 
         total = query.count()
         page = max(1, filters.get("page", 1))
