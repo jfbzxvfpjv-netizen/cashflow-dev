@@ -114,6 +114,12 @@
         <router-link to="/transactions" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm">
           Cancelar
         </router-link>
+        <div v-if="exceedsThreshold" class="bg-yellow-50 border border-yellow-300 rounded p-3 mb-3 text-sm text-yellow-800">
+          ⚠️ Esta operación de <strong>{{ Number(form.amount).toLocaleString() }} XAF</strong> en
+          <strong>{{ exceedsThreshold.category }}</strong> supera el umbral configurado
+          ({{ Number(exceedsThreshold.threshold).toLocaleString() }} XAF) y quedará
+          <strong>pendiente de aprobación</strong> hasta que el admin la apruebe.
+        </div>
         <button type="submit" :disabled="submitting || !signaturePayload"
                 class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50"
                 :title="!signaturePayload ? 'Captura la firma antes de registrar' : ''">
@@ -167,6 +173,28 @@ const userEditedCategory = ref(false)
 
 // F5: estado de la firma capturada por SignatureSection
 const signaturePayload = ref(null)
+
+// D: umbrales de aprobacion (M10a) — para warning preventivo al gestor
+const thresholds = ref([])
+async function loadThresholds() {
+  try {
+    const r = await transactionService.listThresholds()
+    thresholds.value = r.data || []
+  } catch (_) { thresholds.value = [] }
+}
+const exceedsThreshold = computed(() => {
+  if (!form.value.amount || !form.value.category_id || form.value.type !== 'expense') return null
+  const userDeleg = auth.user?.delegacion
+  const match = thresholds.value.find(t =>
+    t.category_id === form.value.category_id &&
+    (!userDeleg || t.delegacion === userDeleg)
+  )
+  if (!match) return null
+  if (Number(form.value.amount) >= Number(match.threshold_amount)) {
+    return { threshold: Number(match.threshold_amount), category: match.category_name }
+  }
+  return null
+})
 
 const contraparteType = computed(() => {
   if (form.value.supplier_id !== null && form.value.supplier_id !== undefined) return 'supplier'
@@ -350,5 +378,5 @@ async function submit() {
   }
 }
 
-onMounted(() => { loadCategories(); loadVehicles() })
+onMounted(() => { loadCategories(); loadVehicles(); loadThresholds() })
 </script>

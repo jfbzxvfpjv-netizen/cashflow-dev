@@ -23,9 +23,10 @@ router = APIRouter(prefix="/approvals", tags=["Aprobaciones"])
 @router.get("/thresholds", response_model=List[ThresholdOut])
 async def list_thresholds(
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("admin"))
+    user: User = Depends(get_current_user),
 ):
-    """Lista todos los umbrales de aprobación configurados."""
+    """Lista umbrales de aprobacion configurados.
+    Admin/contable ven todos. Gestor solo ve los de su delegacion."""
     thresholds = db.query(CategoryApprovalThreshold).all()
     result = []
     for t in thresholds:
