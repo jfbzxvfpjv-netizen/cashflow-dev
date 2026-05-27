@@ -26,8 +26,18 @@
             <td class="px-3 py-2 text-right font-mono">{{ Number(a.amount).toLocaleString() }}</td>
             <td class="px-3 py-2 text-xs">{{ new Date(a.requested_at).toLocaleDateString('es-ES') }}</td>
             <td class="px-3 py-2">
-              <router-link :to="`/transactions/${a.transaction_id}`"
-                           class="text-blue-600 hover:underline text-xs">Ver detalle →</router-link>
+              <div class="flex items-center gap-2 justify-end">
+                <button @click="doApprove(a.id)" :disabled="busy"
+                        class="px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded disabled:opacity-50">
+                  Aprobar
+                </button>
+                <button @click="openRejectModal(a)" :disabled="busy"
+                        class="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs rounded disabled:opacity-50">
+                  Rechazar
+                </button>
+                <router-link :to="`/transactions/${a.transaction_id}`"
+                             class="text-blue-600 hover:underline text-xs">Ver →</router-link>
+              </div>
             </td>
           </tr>
           <tr v-if="pending.length === 0">
@@ -81,6 +91,27 @@
         </button>
       </div>
     </div>
+
+    <!-- Modal Rechazar -->
+    <div v-if="modal==='reject'" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @click.self="modal=null">
+      <div class="bg-white rounded-md p-6 w-full max-w-md">
+        <h2 class="text-lg font-semibold mb-2">Rechazar aprobación</h2>
+        <p class="text-xs text-gray-500 mb-3" v-if="rejectTarget">
+          {{ rejectTarget.reference_number }} · {{ rejectTarget.concept }} · {{ Number(rejectTarget.amount).toLocaleString() }} XAF
+        </p>
+        <div v-if="merr" class="text-sm text-red-600 mb-2 p-2 bg-red-50 rounded">{{ merr }}</div>
+        <label class="block text-xs font-medium text-gray-700 mb-1">Motivo del rechazo *</label>
+        <textarea v-model="rejectReason" rows="3" class="w-full border rounded px-3 py-1.5 text-sm"
+                  placeholder="Explica brevemente por qué se rechaza"></textarea>
+        <div class="flex justify-end gap-2 mt-4">
+          <button @click="modal=null" class="px-4 py-1.5 text-sm rounded border">Cancelar</button>
+          <button @click="doReject" :disabled="busy"
+                  class="px-4 py-1.5 text-sm rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">
+            {{ busy ? 'Enviando…' : 'Rechazar' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -93,6 +124,13 @@ const pending = ref([])
 const thresholds = ref([])
 const categories = ref([])
 const newThreshold = ref({ category_id: null, delegacion: 'Bata', threshold_amount: null })
+
+// M10a: estado para botones aprobar/rechazar
+const modal = ref(null)
+const rejectTarget = ref(null)
+const rejectReason = ref('')
+const merr = ref('')
+const busy = ref(false)
 
 async function load() {
   const [p, t, c] = await Promise.all([
@@ -115,6 +153,43 @@ async function removeThreshold(id) {
   if (!confirm('¿Eliminar este umbral?')) return
   await transactionService.deleteThreshold(id)
   await load()
+}
+
+async function doApprove(approvalId) {
+  if (!confirm('¿Aprobar esta transacción? La caja se verá afectada inmediatamente.')) return
+  busy.value = true
+  try {
+    await transactionService.approveApproval(approvalId)
+    await load()
+  } catch (e) {
+    alert(e.response?.data?.detail || 'Error al aprobar')
+  } finally {
+    busy.value = false
+  }
+}
+
+function openRejectModal(item) {
+  rejectTarget.value = item
+  rejectReason.value = ''
+  merr.value = ''
+  modal.value = 'reject'
+}
+
+async function doReject() {
+  if (!rejectReason.value || rejectReason.value.length < 5) {
+    merr.value = 'El motivo debe tener al menos 5 caracteres'
+    return
+  }
+  busy.value = true
+  try {
+    await transactionService.rejectApproval(rejectTarget.value.id, rejectReason.value)
+    modal.value = null
+    await load()
+  } catch (e) {
+    merr.value = e.response?.data?.detail || 'Error al rechazar'
+  } finally {
+    busy.value = false
+  }
 }
 
 onMounted(() => load())

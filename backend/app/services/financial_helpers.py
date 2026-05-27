@@ -182,6 +182,16 @@ def create_transaction(
     db.flush()
     tx.integrity_hash = compute_transaction_hash(tx)
 
+    # M10a: registrar aprobación pendiente si la transacción quedó por encima del umbral
+    if approval_status == "pending_approval":
+        from app.models.approvals import ExpenseApproval
+        ea = ExpenseApproval(
+            transaction_id=tx.id,
+            requested_by=user_id,
+            status="pending",
+        )
+        db.add(ea)
+
     if project_id and work_id:
         db.add(
             m.TransactionProject(

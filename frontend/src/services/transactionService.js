@@ -43,6 +43,12 @@ export default {
   deleteThreshold(id) {
     return api.delete(`/approvals/thresholds/${id}`)
   },
+  approveApproval(approvalId) {
+    return api.put(`/approvals/pending/${approvalId}/approve`)
+  },
+  rejectApproval(approvalId, rejectionReason) {
+    return api.put(`/approvals/pending/${approvalId}/reject`, { rejection_reason: rejectionReason })
+  },
   listPendingApprovals() {
     return api.get('/approvals/pending')
   },
