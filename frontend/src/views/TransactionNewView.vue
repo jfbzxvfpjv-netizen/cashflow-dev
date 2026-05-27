@@ -313,6 +313,13 @@ async function submit() {
     error.value = 'Falta capturar la firma de la contraparte'
     return
   }
+  // Validar proyectos/obras: cada item debe tener ambos campos completos
+  const projsValid = (form.value.projects || []).filter(p => p && p.project_id && p.work_id)
+  if (projsValid.length === 0) {
+    error.value = 'Debes seleccionar al menos un proyecto y su obra'
+    return
+  }
+  form.value.projects = projsValid
 
   submitting.value = true
   try {
