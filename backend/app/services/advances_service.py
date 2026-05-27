@@ -199,3 +199,101 @@ def repay_by_payroll(db: Session, advance_id: int, data, user_id: int):
     db.commit()
     db.refresh(item)
     return _to_out(db, item)
+
+def get_extended(db: Session, advance_id: int) -> dict:
+    """Devuelve ficha extendida del advance/loan con historial completo."""
+    from app.models import catalogs as cat
+    from app.models.cash_flow import Transaction
+    from app.models.payroll import PayrollEntry, PayrollPeriod
+
+    it = db.query(m.AdvanceLoan).filter(m.AdvanceLoan.id == advance_id).first()
+    if not it:
+        return None
+
+    emp = db.query(cat.Employee).filter(cat.Employee.id == it.employee_id).first()
+
+    # Transaccion de creacion
+    creation_tx = None
+    if it.creation_transaction_id:
+        tx = db.query(Transaction).filter(Transaction.id == it.creation_transaction_id).first()
+        if tx:
+            creation_tx = {
+                "id": tx.id,
+                "reference": tx.reference_number,
+                "amount": float(tx.amount),
+                "concept": tx.concept,
+                "created_at": tx.editable_until.isoformat() if tx.editable_until else None,
+            }
+
+    # Transacciones de devolucion manual (con movimiento de caja)
+    repay_txs = []
+    if it.repay_transaction_ids:
+        txs = (
+            db.query(Transaction)
+              .filter(Transaction.id.in_(it.repay_transaction_ids))
+              .order_by(Transaction.id.asc())
+              .all()
+        )
+        for tx in txs:
+            repay_txs.append({
+                "id": tx.id,
+                "reference": tx.reference_number,
+                "amount": float(tx.amount),
+                "concept": tx.concept,
+                "created_at": tx.editable_until.isoformat() if tx.editable_until else None,
+            })
+
+    # Liquidaciones por nomina (payroll_entries donde aparece este advance/loan)
+    payroll_liqs = []
+    key = "advances" if it.type == "advance" else "loans"
+    id_key = "advance_id" if it.type == "advance" else "loan_id"
+    entries = (
+        db.query(PayrollEntry, PayrollPeriod)
+          .join(PayrollPeriod, PayrollEntry.period_id == PayrollPeriod.id)
+          .filter(PayrollEntry.deduction_refs[key].is_not(None))
+          .filter(PayrollEntry.employee_id == it.employee_id)
+          .order_by(PayrollPeriod.year.desc(), PayrollPeriod.month.desc())
+          .all()
+    )
+    for entry, period in entries:
+        refs = (entry.deduction_refs or {}).get(key) or []
+        for ref in refs:
+            if ref.get(id_key) == it.id and float(ref.get("amount", 0)) > 0:
+                payroll_liqs.append({
+                    "period": f"{period.year}-{period.month:02d}",
+                    "delegacion": period.delegacion,
+                    "amount": float(ref["amount"]),
+                    "entry_id": entry.id,
+                    "paid": entry.transaction_id is not None,
+                })
+
+    # Datos del prestamo / anticipo
+    installments_info = None
+    if it.type == "loan" and it.installments_count:
+        monthly = float(it.amount) / it.installments_count
+        installments_info = {
+            "total": it.installments_count,
+            "monthly": round(monthly, 2),
+        }
+
+    return {
+        "id": it.id,
+        "type": it.type,
+        "employee": {
+            "id": it.employee_id,
+            "code": emp.code if emp else None,
+            "full_name": emp.full_name if emp else None,
+            "delegacion": emp.delegacion if emp else None,
+        },
+        "concept": it.concept,
+        "amount_initial": float(it.amount),
+        "amount_repaid": float(it.amount_repaid),
+        "remaining": float(it.amount) - float(it.amount_repaid),
+        "status": it.status,
+        "opened_at": it.opened_at.isoformat() if it.opened_at else None,
+        "closed_at": it.closed_at.isoformat() if it.closed_at else None,
+        "installments": installments_info,
+        "creation_transaction": creation_tx,
+        "repay_transactions": repay_txs,
+        "payroll_liquidations": payroll_liqs,
+    }

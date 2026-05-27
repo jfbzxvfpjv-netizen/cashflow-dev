@@ -89,3 +89,15 @@ async def repay_advance_by_payroll(
     reducido, no una transacción de devolución.
     """
     return advances_service.repay_by_payroll(db, advance_id, data, user.id)
+
+@router.get("/{advance_id}/extended")
+async def get_extended(
+    advance_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Ficha extendida del advance/loan con historial completo."""
+    result = advances_service.get_extended(db, advance_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Advance/Loan no encontrado")
+    return result

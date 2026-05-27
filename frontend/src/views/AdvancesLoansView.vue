@@ -37,7 +37,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="it in items" :key="it.id" class="border-t">
+        <tr v-for="it in items" :key="it.id" class="border-t cursor-pointer hover:bg-blue-50" @click="openExtended(it)">
           <td class="px-4 py-2">{{ it.employee_name }}</td>
           <td class="px-4 py-2">{{ it.type === 'advance' ? 'Anticipo' : 'Préstamo' }}</td>
           <td class="px-4 py-2 text-right">{{ fmt(it.amount) }}</td>
@@ -55,7 +55,7 @@
                   :title="`Repays: ${it.repay_transaction_ids.join(', ')}`">↩️</span>
           </td>
           <td class="px-4 py-2 text-center">
-            <button v-if="it.status !== 'closed'" @click="openRepay(it)"
+            <button v-if="it.status !== 'closed'" @click.stop="openRepay(it)"
               class="text-blue-600 hover:underline text-sm">Devolver</button>
           </td>
         </tr>
@@ -217,6 +217,119 @@
       </div>
     </div>
   </div>
+
+    <!-- Modal: Ficha extendida -->
+    <div v-if="extendedTarget" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click.self="closeExtended">
+      <div class="bg-white rounded shadow-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div class="px-6 py-4 border-b flex justify-between items-center sticky top-0 bg-white">
+          <h2 class="text-lg font-bold">
+            {{ extendedTarget.type === 'advance' ? 'Anticipo' : 'Préstamo' }} #{{ extendedTarget.id }}
+          </h2>
+          <button @click="closeExtended" class="text-gray-500 hover:text-gray-800 text-xl">✕</button>
+        </div>
+        <div class="p-6">
+          <!-- Empleado -->
+          <div class="mb-4 pb-4 border-b">
+            <div class="text-xs text-gray-500 uppercase mb-1">Empleado</div>
+            <div class="text-base font-semibold">{{ extendedTarget.employee.full_name }}</div>
+            <div class="text-sm text-gray-600">{{ extendedTarget.employee.code }} · {{ extendedTarget.employee.delegacion }}</div>
+          </div>
+          <!-- Datos basicos -->
+          <div class="grid grid-cols-3 gap-4 mb-4 pb-4 border-b text-sm">
+            <div>
+              <div class="text-xs text-gray-500 uppercase">Importe inicial</div>
+              <div class="font-mono text-lg">{{ fmt(extendedTarget.amount_initial) }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500 uppercase">Devuelto</div>
+              <div class="font-mono text-lg text-green-700">{{ fmt(extendedTarget.amount_repaid) }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500 uppercase">Pendiente</div>
+              <div class="font-mono text-lg font-bold" :class="extendedTarget.remaining > 0 ? 'text-orange-700' : 'text-gray-400'">
+                {{ fmt(extendedTarget.remaining) }}
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500 uppercase">Estado</div>
+              <span :class="statusClass(extendedTarget.status)" class="inline-block px-2 py-1 rounded text-xs mt-1">
+                {{ extendedTarget.status }}
+              </span>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500 uppercase">Abierto</div>
+              <div class="text-sm">{{ fmtDate(extendedTarget.opened_at) }}</div>
+            </div>
+            <div v-if="extendedTarget.closed_at">
+              <div class="text-xs text-gray-500 uppercase">Cerrado</div>
+              <div class="text-sm">{{ fmtDate(extendedTarget.closed_at) }}</div>
+            </div>
+          </div>
+          <!-- Concepto -->
+          <div class="mb-4 pb-4 border-b">
+            <div class="text-xs text-gray-500 uppercase mb-1">Concepto</div>
+            <div class="text-sm">{{ extendedTarget.concept }}</div>
+          </div>
+          <!-- Cuotas (solo prestamos) -->
+          <div v-if="extendedTarget.installments" class="mb-4 pb-4 border-b">
+            <div class="text-xs text-gray-500 uppercase mb-2">Plan de cuotas (préstamo)</div>
+            <div class="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span class="text-gray-500">Nº total cuotas:</span>
+                <span class="ml-2 font-semibold">{{ extendedTarget.installments.total }}</span>
+              </div>
+              <div>
+                <span class="text-gray-500">Cuota mensual:</span>
+                <span class="ml-2 font-mono font-semibold">{{ fmt(extendedTarget.installments.monthly) }}</span>
+              </div>
+            </div>
+          </div>
+          <!-- Transaccion de creacion -->
+          <div v-if="extendedTarget.creation_transaction" class="mb-4 pb-4 border-b">
+            <div class="text-xs text-gray-500 uppercase mb-2">Transacción de creación</div>
+            <div class="bg-gray-50 rounded p-2 text-sm">
+              <div class="font-mono text-blue-700">#{{ extendedTarget.creation_transaction.reference }}</div>
+              <div class="text-gray-600">{{ extendedTarget.creation_transaction.concept }}</div>
+              <div class="text-xs text-gray-500 mt-1">{{ fmtDate(extendedTarget.creation_transaction.created_at) }}</div>
+            </div>
+          </div>
+          <!-- Devoluciones manuales (con caja) -->
+          <div v-if="extendedTarget.repay_transactions && extendedTarget.repay_transactions.length" class="mb-4 pb-4 border-b">
+            <div class="text-xs text-gray-500 uppercase mb-2">Devoluciones manuales (con caja)</div>
+            <div class="space-y-2">
+              <div v-for="tx in extendedTarget.repay_transactions" :key="tx.id" class="bg-gray-50 rounded p-2 text-sm flex justify-between items-center">
+                <div>
+                  <span class="font-mono text-blue-700">#{{ tx.reference }}</span>
+                  <span class="ml-2 text-gray-600">{{ tx.concept }}</span>
+                </div>
+                <div class="text-right">
+                  <div class="font-mono font-semibold">{{ fmt(tx.amount) }}</div>
+                  <div class="text-xs text-gray-500">{{ fmtDate(tx.created_at) }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Liquidaciones por nomina -->
+          <div v-if="extendedTarget.payroll_liquidations && extendedTarget.payroll_liquidations.length" class="mb-4">
+            <div class="text-xs text-gray-500 uppercase mb-2">Liquidaciones por nómina</div>
+            <div class="space-y-2">
+              <div v-for="liq in extendedTarget.payroll_liquidations" :key="liq.entry_id" class="bg-gray-50 rounded p-2 text-sm flex justify-between items-center">
+                <div>
+                  <span class="font-semibold">{{ liq.period }}</span>
+                  <span class="ml-2 text-gray-600">{{ liq.delegacion }}</span>
+                  <span v-if="liq.paid" class="ml-2 px-1.5 py-0.5 bg-green-100 text-green-700 text-xs rounded">pagada</span>
+                  <span v-else class="ml-2 px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded">pendiente</span>
+                </div>
+                <div class="font-mono font-semibold text-red-600">-{{ fmt(liq.amount) }}</div>
+              </div>
+            </div>
+          </div>
+          <div v-if="!extendedTarget.repay_transactions?.length && !extendedTarget.payroll_liquidations?.length" class="text-sm text-gray-400 italic text-center py-4">
+            Sin devoluciones ni liquidaciones aún.
+          </div>
+        </div>
+      </div>
+    </div>
 </template>
 
 <script setup>
@@ -370,4 +483,24 @@ onMounted(async () => {
   await loadCatalogs()
   await load()
 })
+
+// Ficha extendida
+const extendedTarget = ref(null)
+async function openExtended(it) {
+  try {
+    const r = await api.get(`/advances-loans/${it.id}/extended`)
+    extendedTarget.value = r.data
+  } catch (e) {
+    alert('Error cargando ficha: ' + (e.response?.data?.detail || e.message))
+  }
+}
+function closeExtended() {
+  extendedTarget.value = null
+}
+function fmtDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' })
+}
+
 </script>
