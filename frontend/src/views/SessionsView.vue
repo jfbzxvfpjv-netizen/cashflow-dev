@@ -2,9 +2,19 @@
   <div class="max-w-6xl mx-auto px-4 py-6">
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold text-gray-800">Sesiones de caja</h1>
-      <div v-if="canManage">
-        <button v-if="!active" @click="modal='open'" class="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700">＋ Abrir sesión</button>
-        <button v-else @click="modal='close'" class="bg-red-600 text-white px-5 py-2 rounded-lg hover:bg-red-700">✕ Cerrar sesión</button>
+      <div>
+        <button v-if="!active"
+                :disabled="!canManage"
+                :title="canManage ? '' : 'Solo el gestor abre su sesión de caja'"
+                :class="canManage ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'"
+                class="px-5 py-2 rounded-lg"
+                @click="modal='open'">＋ Abrir sesión</button>
+        <button v-else
+                :disabled="!canManage"
+                :title="canManage ? '' : 'Solo el gestor cierra su sesión de caja'"
+                :class="canManage ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'"
+                class="px-5 py-2 rounded-lg"
+                @click="modal='close'">✕ Cerrar sesión</button>
       </div>
     </div>
 
@@ -97,7 +107,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import svc from '@/services/sessionService'
 const auth = useAuthStore()
-const canManage = computed(() => ['gestor','admin'].includes(auth.user?.role))
+const canManage = computed(() => auth.user?.role === 'gestor')
 const active = ref(null), sessions = ref([]), pages = ref(1)
 const f = ref({ delegacion:'', status:'', ds:'', de:'', page:1 })
 const modal = ref(null), mf = ref({ delegacion:'', notes:'' }), merr = ref(''), busy = ref(false)
