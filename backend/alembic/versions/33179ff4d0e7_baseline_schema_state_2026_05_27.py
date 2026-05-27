@@ -19,11 +19,37 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Baseline: estado actual de la BD a 27/05/2026.
-    NO aplica cambios. La BD ya tiene todas las tablas de Capa1+Capa2 hasta M10b-v2.
-    Migraciones nuevas (incrementales) se generan a partir de esta revision.
+    """Baseline: crea todas las tablas si la BD esta vacia.
+    Si la BD ya tiene tablas (caso de BDs existentes stampeadas), NO hace nada.
+    Esto permite desplegar en BD nueva con 'alembic upgrade head' y obtener
+    el estado completo del schema (38 tablas) hasta M10b-v3.
     """
-    pass
+    import os
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    existing_tables = inspector.get_table_names()
+
+    # Si ya hay tablas distintas de alembic_version, asumimos BD existente stampeada
+    business_tables = [t for t in existing_tables if t != 'alembic_version']
+    if business_tables:
+        print(f"BD ya tiene {len(business_tables)} tablas; no se aplica init_full_schema.sql")
+        return
+
+    # BD vacia: ejecutar init_full_schema.sql via conexion raw
+    sql_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'init_full_schema.sql')
+    with open(sql_path, 'r') as f:
+        sql = f.read()
+    raw_conn = conn.connection.dbapi_connection
+    cur = raw_conn.cursor()
+    try:
+        cur.execute(sql)
+        print("Schema inicial aplicado desde init_full_schema.sql")
+    except Exception as e:
+        print(f"ERROR ejecutando init_full_schema: {type(e).__name__}: {e}")
+        raise
+    finally:
+        cur.close()
 
 
 def downgrade() -> None:
