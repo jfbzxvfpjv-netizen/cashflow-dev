@@ -159,6 +159,14 @@ class Transaction(Base):
     imported_editable_until = Column(DateTime, nullable=True)
     editable_until = Column(DateTime, nullable=False)
     integrity_hash = Column(String(64), nullable=False)
+
+    # H-transaction-projects-relation: relationship con TransactionProject
+    project_assignments = relationship(
+        "TransactionProject",
+        back_populates="transaction",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
     created_at = Column(DateTime, default=datetime.utcnow)
 
     session = relationship("CashSession", foreign_keys=[session_id])
@@ -181,6 +189,8 @@ class TransactionProject(Base):
     transaction_id = Column(Integer, ForeignKey("transactions.id"), nullable=False)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     work_id = Column(Integer, ForeignKey("works.id"), nullable=True)
+
+    transaction = relationship("Transaction", back_populates="project_assignments")
 
     __table_args__ = (
         UniqueConstraint("transaction_id", "project_id", "work_id", name="uq_tx_proj_work"),

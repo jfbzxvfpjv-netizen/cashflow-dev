@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Set, Tuple
 from sqlalchemy.orm import Session
 
 from app.models import catalogs as m
+from app.models.cash_flow import TransactionProject
 
 
 # =============================================================================
@@ -261,21 +262,17 @@ def _counterparty_key(t) -> Optional[str]:
 def _project_ids_bulk(db: Session, txn_ids: List[int]) -> Dict[int, List[int]]:
     """Query SQL directa a transaction_projects en bloque.
 
-    La relación no está mapeada como atributo en el modelo Transaction;
-    se resuelve por consulta agrupada una sola vez al cargar el corpus.
+    La relación ahora está mapeada (Transaction.project_assignments) pero esta función
+    sigue usando query agrupada via ORM para batch load eficiente del corpus.
     """
-    from sqlalchemy import text
     if not txn_ids:
         return {}
     result: Dict[int, List[int]] = defaultdict(list)
-    rows = db.execute(
-        text("""
-            SELECT transaction_id, project_id
-            FROM transaction_projects
-            WHERE transaction_id = ANY(:ids)
-        """),
-        {"ids": txn_ids},
-    ).fetchall()
+    rows = (
+        db.query(TransactionProject.transaction_id, TransactionProject.project_id)
+          .filter(TransactionProject.transaction_id.in_(txn_ids))
+          .all()
+    )
     for txn_id, project_id in rows:
         result[txn_id].append(project_id)
     return dict(result)
