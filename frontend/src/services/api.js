@@ -10,7 +10,12 @@ api.interceptors.request.use((c) => {
 })
 
 api.interceptors.response.use(r => r, err => {
-  if (err.response?.status === 401) { useAuthStore().logout(); window.location.href = '/login' }
+  const url = err.config?.url || ''
+  const isLoginAttempt = url.includes('/auth/login') || url.includes('/auth/verify-2fa')
+  if (err.response?.status === 401 && !isLoginAttempt) {
+    useAuthStore().logout()
+    window.location.href = '/login'
+  }
   return Promise.reject(err)
 })
 
