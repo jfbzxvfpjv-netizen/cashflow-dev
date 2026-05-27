@@ -59,3 +59,4 @@ nginx/ssl/*.pem
 *.temp
 
 # Excepción: scripts de migración SQL sí se versionan
+!backend/sql/migrations/*.sql
