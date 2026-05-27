@@ -20,9 +20,11 @@ from sqlalchemy.orm import Session
 
 from app.models.payroll import PayrollPeriod, PayrollEntry
 from app.models.catalogs import Employee
+from app.models.financial_modules import RetentionDeposit
 from app.models.cash_flow import Transaction
 from app.models.user import User
 from app.models.audit_log import AuditLog
+from app.schemas.financial_modules import AdvanceLoanRepayByPayroll
 from app.services.payroll_deductions import calculate_deductions
 from app.services.financial_helpers import get_active_session, create_transaction
 from app.schemas.payroll import (
@@ -428,4 +430,115 @@ class PayrollService:
             "deduction_retentions": float(e.deduction_retentions or 0),
             "deduction_refs": e.deduction_refs,
             "manual_override": bool(e.manual_override),
+            "liquidated_without_cash": bool(e.liquidated_without_cash),
+            "liquidated_at": e.liquidated_at.isoformat() if e.liquidated_at else None,
+            "liquidated_by": e.liquidated_by,
         }
+
+    # ── 6. Liquidar deducciones sin movimiento de caja (M10b-v3) ───────────
+    def liquidate_without_cash(self, period_id: int, entry_id: int, user: User) -> dict:
+        """Liquida deducciones de un entry SIN crear Transaction en caja.
+        Aplicable solo a entries con cash_amount=0 y deducciones>0
+        (caso deudor neto cronico). Solo gestor de la delegacion.
+        """
+        period = self._get_or_404(period_id)
+        if period.status != "draft":
+            raise HTTPException(status_code=400, detail=f"Periodo no editable (status='{period.status}')")
+        if user.role != "gestor":
+            raise HTTPException(status_code=403, detail="Solo el gestor puede liquidar")
+        if period.delegacion != user.delegacion:
+            raise HTTPException(status_code=403, detail="Sin acceso a esta delegacion")
+
+        entry = self.db.query(PayrollEntry).filter(
+            PayrollEntry.id == entry_id,
+            PayrollEntry.period_id == period.id,
+        ).first()
+        if not entry:
+            raise HTTPException(status_code=404, detail="Entry no encontrado")
+        if entry.transaction_id:
+            raise HTTPException(status_code=400, detail="Entry ya pagada")
+        if entry.liquidated_without_cash:
+            raise HTTPException(status_code=400, detail="Entry ya liquidada sin caja")
+        if Decimal(entry.cash_amount or 0) > 0:
+            raise HTTPException(status_code=400, detail="Hay efectivo a pagar: use el flujo de pago normal")
+
+        total_deducc = (
+            Decimal(entry.deduction_advances or 0) +
+            Decimal(entry.deduction_loans or 0) +
+            Decimal(entry.deduction_retentions or 0)
+        )
+        if total_deducc <= 0:
+            raise HTTPException(status_code=400, detail="No hay deducciones que liquidar")
+
+        # Aplicar liquidaciones: advances + loans via repay_by_payroll
+        from app.services import advances_service
+        refs = entry.deduction_refs or {}
+
+        applied = {"advances": [], "loans": [], "retentions": []}
+        for adv in (refs.get("advances") or []):
+            amt = Decimal(adv.get("amount", 0))
+            if amt <= 0:
+                continue
+            try:
+                advances_service.repay_by_payroll(
+                    self.db, adv["advance_id"], AdvanceLoanRepayByPayroll(amount=amt), user.id
+                )
+                applied["advances"].append({"advance_id": adv["advance_id"], "amount": float(amt)})
+            except Exception as e:
+                self.db.add(AuditLog(
+                    user_id=user.id, delegacion=period.delegacion,
+                    action="PAYROLL_LIQUIDATE_NOCASH_ADVANCE_ERROR",
+                    entity="advance_loan", entity_id=adv["advance_id"],
+                    details={"entry_id": entry.id, "error": str(e)},
+                ))
+
+        for loan in (refs.get("loans") or []):
+            amt = Decimal(loan.get("amount", 0))
+            if amt <= 0:
+                continue
+            try:
+                advances_service.repay_by_payroll(
+                    self.db, loan["loan_id"], AdvanceLoanRepayByPayroll(amount=amt), user.id
+                )
+                applied["loans"].append({"loan_id": loan["loan_id"], "amount": float(amt)})
+            except Exception as e:
+                self.db.add(AuditLog(
+                    user_id=user.id, delegacion=period.delegacion,
+                    action="PAYROLL_LIQUIDATE_NOCASH_LOAN_ERROR",
+                    entity="advance_loan", entity_id=loan["loan_id"],
+                    details={"entry_id": entry.id, "error": str(e)},
+                ))
+
+        for ret in (refs.get("retentions") or []):
+            amt = Decimal(ret.get("amount", 0))
+            if amt <= 0:
+                continue
+            try:
+                rd = self.db.query(RetentionDeposit).filter(RetentionDeposit.id == ret["retention_id"]).first()
+                if rd and rd.status == "pending":
+                    rd.status = "released"
+                    rd.release_date = datetime.utcnow().date()
+                    applied["retentions"].append({"retention_id": ret["retention_id"], "amount": float(amt)})
+            except Exception as e:
+                self.db.add(AuditLog(
+                    user_id=user.id, delegacion=period.delegacion,
+                    action="PAYROLL_LIQUIDATE_NOCASH_RETENTION_ERROR",
+                    entity="retention_deposit", entity_id=ret["retention_id"],
+                    details={"entry_id": entry.id, "error": str(e)},
+                ))
+
+        # Marcar entry como liquidada sin caja
+        entry.liquidated_without_cash = True
+        entry.liquidated_at = datetime.utcnow()
+        entry.liquidated_by = user.id
+
+        self.db.add(AuditLog(
+            user_id=user.id, delegacion=period.delegacion,
+            action="PAYROLL_LIQUIDATE_NOCASH",
+            entity="payroll_entry", entity_id=entry.id,
+            details={"employee_id": entry.employee_id, "applied": applied, "total": float(total_deducc)},
+        ))
+        self.db.commit()
+        self.db.refresh(entry)
+        return self._enrich_entry(entry)
+

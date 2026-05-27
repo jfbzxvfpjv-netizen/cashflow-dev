@@ -55,6 +55,10 @@ class PayrollEntry(Base):
     deduction_retentions = Column(Numeric(12, 2), nullable=False, default=0)
     deduction_refs = Column(JSONB, nullable=False, default=dict)
     manual_override = Column(Boolean, nullable=False, default=False)
+    # M10b-v3: liquidacion sin movimiento de caja (deudor neto cronico)
+    liquidated_without_cash = Column(Boolean, nullable=False, default=False)
+    liquidated_at = Column(DateTime, nullable=True)
+    liquidated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     period = relationship("PayrollPeriod", back_populates="entries")
 

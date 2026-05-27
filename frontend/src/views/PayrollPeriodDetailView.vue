@@ -81,8 +81,14 @@
             </td>
             <td class="px-3 py-2 text-right font-mono font-semibold">{{ Number(e.cash_amount).toLocaleString() }}</td>
             <td class="px-3 py-2">
-              <span v-if="!e.transaction_id && Number(e.cash_amount) === 0" class="text-gray-400 text-xs">
+              <span v-if="e.liquidated_without_cash" class="text-purple-700 text-xs">
+                Liquidado sin caja · {{ fmtDate(e.liquidated_at) }}
+              </span>
+              <span v-else-if="!e.transaction_id && Number(e.cash_amount) === 0 && totalDeductions(e) === 0" class="text-gray-400 text-xs">
                 Sin efectivo (todo por banco)
+              </span>
+              <span v-else-if="!e.transaction_id && Number(e.cash_amount) === 0 && totalDeductions(e) > 0" class="text-orange-600 text-xs">
+                Pendiente (sin efectivo)
               </span>
               <span v-else-if="!e.transaction_id" class="text-orange-600 text-xs">Pendiente</span>
               <span v-else-if="e.transaction_status === 'approved'" class="text-green-700 text-xs">
@@ -99,6 +105,10 @@
               <button v-if="canPayEntry(e)" @click="openPayModal(e)"
                       class="px-2 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs rounded">
                 Pagar
+              </button>
+              <button v-if="canLiquidateNoCash(e)" @click="openLiquidateModal(e)"
+                      class="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs rounded">
+                Liquidar sin caja
               </button>
               <button v-else-if="canEditEntry(e)" @click="openEditEntry(e)"
                       class="text-blue-600 hover:underline text-xs ml-2">
@@ -193,6 +203,47 @@
       </div>
     </div>
   </div>
+
+    <!-- Modal Liquidar sin caja -->
+    <div v-if="liquidateTarget" class="fixed inset-0 bg-black/40 flex items-start justify-center z-50 overflow-auto p-4" @click.self="closeLiquidateModal">
+      <div class="bg-white rounded p-6 w-full max-w-lg my-4">
+        <h2 class="text-lg font-semibold mb-1">Liquidar deducciones sin caja</h2>
+        <p class="text-sm text-gray-600 mb-3">{{ liquidateTarget.employee_name }}</p>
+        <div class="bg-purple-50 border-l-4 border-purple-400 p-3 mb-3 text-sm">
+          <div class="font-semibold mb-1">⚠ Esta operación NO genera movimiento de caja.</div>
+          <div>Se descontará del saldo de los anticipos / préstamos del empleado y se marcarán las retenciones aplicables como liberadas, sin pagar nada en efectivo.</div>
+        </div>
+        <div class="bg-gray-50 rounded p-3 mb-3 text-sm">
+          <div class="flex justify-between"><span class="text-gray-500">Periodo:</span>
+            <span>{{ monthNames[period.month - 1] }} {{ period.year }}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">Salario bruto:</span>
+            <span class="font-mono">{{ Number(liquidateTarget.salary_gross).toLocaleString() }} XAF</span></div>
+          <div v-if="Number(liquidateTarget.deduction_advances) > 0" class="flex justify-between"><span class="text-gray-500">Anticipos:</span>
+            <span class="font-mono text-red-600">-{{ Number(liquidateTarget.deduction_advances).toLocaleString() }} XAF</span></div>
+          <div v-if="Number(liquidateTarget.deduction_loans) > 0" class="flex justify-between"><span class="text-gray-500">Cuotas de préstamos:</span>
+            <span class="font-mono text-red-600">-{{ Number(liquidateTarget.deduction_loans).toLocaleString() }} XAF</span></div>
+          <div v-if="Number(liquidateTarget.deduction_retentions) > 0" class="flex justify-between"><span class="text-gray-500">Retenciones:</span>
+            <span class="font-mono text-red-600">-{{ Number(liquidateTarget.deduction_retentions).toLocaleString() }} XAF</span></div>
+          <div class="border-t border-gray-200 my-2"></div>
+          <div class="flex justify-between text-base">
+            <span class="font-semibold">Total a liquidar:</span>
+            <span class="font-mono font-bold text-purple-700">{{ totalDeductions(liquidateTarget).toLocaleString() }} XAF</span>
+          </div>
+          <div class="flex justify-between text-sm mt-1">
+            <span class="text-gray-500">Efectivo a pagar:</span>
+            <span class="font-mono text-gray-400">0 XAF</span>
+          </div>
+        </div>
+        <div v-if="liquidateErr" class="text-sm text-red-600 mb-2 p-2 bg-red-50 rounded">{{ liquidateErr }}</div>
+        <div class="flex justify-end gap-2 mt-4">
+          <button @click="closeLiquidateModal" :disabled="liquidateBusy" class="px-4 py-1.5 text-sm rounded border">Cancelar</button>
+          <button @click="doLiquidateNoCash" :disabled="liquidateBusy"
+                  class="px-4 py-1.5 text-sm rounded bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50">
+            {{ liquidateBusy ? 'Liquidando...' : 'Confirmar liquidación' }}
+          </button>
+        </div>
+      </div>
+    </div>
 </template>
 
 <script setup>
@@ -353,4 +404,45 @@ async function doClose() {
 }
 
 onMounted(load)
+
+// M10b-v3: liquidar sin caja
+const liquidateTarget = ref(null)
+const liquidateBusy = ref(false)
+const liquidateErr = ref('')
+
+function canLiquidateNoCash(e) {
+  return !e.transaction_id
+    && !e.liquidated_without_cash
+    && Number(e.cash_amount) === 0
+    && totalDeductions(e) > 0
+    && auth.userRole === 'gestor'
+    && period.value?.delegacion === auth.user?.delegacion
+    && period.value?.status === 'draft'
+}
+function openLiquidateModal(e) {
+  liquidateTarget.value = e
+  liquidateErr.value = ''
+}
+function closeLiquidateModal() {
+  liquidateTarget.value = null
+  liquidateErr.value = ''
+}
+async function doLiquidateNoCash() {
+  if (!liquidateTarget.value) return
+  liquidateBusy.value = true
+  liquidateErr.value = ''
+  try {
+    await payrollService.liquidateNoCash(period.value.id, liquidateTarget.value.id)
+    closeLiquidateModal()
+    await loadPeriod()
+  } catch (e) {
+    liquidateErr.value = e.response?.data?.detail || e.message
+  } finally {
+    liquidateBusy.value = false
+  }
+}
+function fmtDate(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
 </script>

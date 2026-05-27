@@ -76,3 +76,16 @@ def pay_entry(period_id: int, entry_id: int, payload: PayrollPayPayload,
     """Gestor paga una entrada individual de nómina con firma del empleado."""
     svc = PayrollService(db)
     return svc.pay_entry(period_id, entry_id, payload.signature, user)
+
+@router.put("/{period_id}/entries/{entry_id}/liquidate-no-cash")
+async def liquidate_no_cash(
+    period_id: int,
+    entry_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """M10b-v3: liquida deducciones SIN movimiento de caja (deudor neto cronico).
+    Solo gestor de la delegacion, entry con cash_amount=0 y deducciones>0.
+    """
+    svc = PayrollService(db)
+    return svc.liquidate_without_cash(period_id, entry_id, user)

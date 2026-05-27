@@ -19,6 +19,9 @@ export default {
   payEntry(periodId, entryId, signaturePayload) {
     return api.post(`/payrolls/${periodId}/entries/${entryId}/pay`, { signature: signaturePayload })
   },
+  liquidateNoCash(periodId, entryId) {
+    return api.put(`/payrolls/${periodId}/entries/${entryId}/liquidate-no-cash`)
+  },
   closePeriod(periodId) {
     return api.put(`/payrolls/${periodId}/close`)
   },
