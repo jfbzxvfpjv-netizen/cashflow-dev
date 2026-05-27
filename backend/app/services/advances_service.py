@@ -29,6 +29,7 @@ def _to_out(db: Session, it: m.AdvanceLoan) -> dict:
         "concept": it.concept,
         "status": it.status,
         "amount_repaid": repaid,
+        "installments_count": it.installments_count,
         "pending": amount - repaid,
         "opened_at": it.opened_at,
         "closed_at": it.closed_at,
@@ -94,6 +95,7 @@ def create(db: Session, data, user, delegacion: str):
         concept=data.concept,
         status="open",
         amount_repaid=Decimal("0"),
+        installments_count=getattr(data, 'installments_count', None),
         opened_at=datetime.utcnow(),
         creation_transaction_id=tx.id,
     )

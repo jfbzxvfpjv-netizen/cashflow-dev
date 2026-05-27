@@ -2,7 +2,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List, Literal
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # -------- Anticipos y préstamos -------------------------------------------
@@ -11,6 +11,26 @@ class AdvanceLoanBase(BaseModel):
     type: Literal["advance", "loan"]
     amount: Decimal = Field(..., gt=0)
     concept: str = Field(..., min_length=3)
+    installments_count: Optional[int] = Field(None, ge=1)
+
+    @model_validator(mode='after')
+    def _check_installments(self):
+        if self.type == 'loan' and (self.installments_count is None or self.installments_count < 1):
+            raise ValueError("El préstamo requiere un número de cuotas mensuales (>= 1)")
+        if self.type == 'advance' and self.installments_count is not None:
+            # Para anticipo se ignora (no se persiste)
+            self.installments_count = None
+        return self
+    installments_count: Optional[int] = Field(None, ge=1)
+
+    @model_validator(mode='after')
+    def _check_installments(self):
+        if self.type == 'loan' and (self.installments_count is None or self.installments_count < 1):
+            raise ValueError("El préstamo requiere un número de cuotas mensuales (>= 1)")
+        if self.type == 'advance' and self.installments_count is not None:
+            # Para anticipo se ignora (no se persiste)
+            self.installments_count = None
+        return self
 
 
 class AdvanceLoanCreate(AdvanceLoanBase):

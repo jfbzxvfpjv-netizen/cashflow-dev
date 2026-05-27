@@ -31,6 +31,11 @@ class PayrollEntryRead(BaseModel):
     transaction_reference: Optional[str] = None
     paid_at: Optional[datetime] = None
     notes: Optional[str] = None
+    deduction_advances: Decimal = Decimal(0)
+    deduction_loans: Decimal = Decimal(0)
+    deduction_retentions: Decimal = Decimal(0)
+    deduction_refs: Optional[dict] = None
+    manual_override: bool = False
     model_config = {"from_attributes": True}
 
 
@@ -45,6 +50,11 @@ class PayrollPeriodRead(BaseModel):
     created_at: datetime
     paid_at: Optional[datetime] = None
     notes: Optional[str] = None
+    deduction_advances: Decimal = Decimal(0)
+    deduction_loans: Decimal = Decimal(0)
+    deduction_retentions: Decimal = Decimal(0)
+    deduction_refs: Optional[dict] = None
+    manual_override: bool = False
     # Resumen
     total_employees: int = 0
     total_cash: Decimal = Decimal(0)

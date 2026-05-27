@@ -80,10 +80,18 @@
           </div>
           <div>
             <label class="block mb-2 text-sm">Tipo</label>
-            <select v-model="form.type" class="w-full border rounded px-3 py-2 truncate">
+            <select v-model="form.type" @change="form.installments_count = form.type === 'loan' ? 1 : null" class="w-full border rounded px-3 py-2 truncate">
               <option value="advance">Anticipo</option>
               <option value="loan">Préstamo</option>
             </select>
+          </div>
+          <div v-if="form.type === 'loan'">
+            <label class="block mb-2 text-sm">Nº de cuotas mensuales *</label>
+            <input v-model.number="form.installments_count" type="number" min="1" class="w-full border rounded px-3 py-2"
+                   placeholder="Ej: 10" />
+            <p v-if="form.installments_count >= 1 && form.amount > 0" class="text-xs text-gray-500 mt-1">
+              Cuota mensual: {{ Math.round(form.amount / form.installments_count).toLocaleString() }} XAF
+            </p>
           </div>
         </div>
 
@@ -250,7 +258,7 @@ const showRepay  = ref(false)
 const repayTarget = ref(null)
 
 const emptyCreateForm = () => ({
-  employee_id: null, type: 'advance', amount: 0, concept: '',
+  employee_id: null, type: 'advance', amount: 0, concept: '', installments_count: null,
   category_id: null, subcategory_id: null,
   project_id: null, work_id: null,
 })

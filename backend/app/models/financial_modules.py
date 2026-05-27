@@ -24,6 +24,7 @@ class AdvanceLoan(Base):
     concept = Column(Text, nullable=False)
     status = Column(String(10), nullable=False, default="open")
     amount_repaid = Column(Numeric(12, 2), nullable=False, default=0)
+    installments_count = Column(Integer, nullable=True)
     opened_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     closed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

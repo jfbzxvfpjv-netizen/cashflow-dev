@@ -5,8 +5,9 @@ Tablas:
 - payroll_periods: 1 por (mes, año, delegación). Status 'draft'|'paid'.
 - payroll_entries: 1 por (periodo, empleado). Snapshot de salarios al generar.
 """
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import (
-    Column, Integer, SmallInteger, String, Numeric, DateTime, Date,
+    Column, Integer, SmallInteger, String, Numeric, DateTime, Date, Boolean,
     Text, ForeignKey, CheckConstraint, UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
@@ -49,6 +50,11 @@ class PayrollEntry(Base):
     transaction_id  = Column(Integer, ForeignKey("transactions.id"), nullable=True)
     paid_at         = Column(DateTime, nullable=True)
     notes           = Column(Text, nullable=True)
+    deduction_advances = Column(Numeric(12, 2), nullable=False, default=0)
+    deduction_loans = Column(Numeric(12, 2), nullable=False, default=0)
+    deduction_retentions = Column(Numeric(12, 2), nullable=False, default=0)
+    deduction_refs = Column(JSONB, nullable=False, default=dict)
+    manual_override = Column(Boolean, nullable=False, default=False)
 
     period = relationship("PayrollPeriod", back_populates="entries")
 

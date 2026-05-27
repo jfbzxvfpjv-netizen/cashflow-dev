@@ -23,6 +23,7 @@ from app.models.catalogs import Employee
 from app.models.cash_flow import Transaction
 from app.models.user import User
 from app.models.audit_log import AuditLog
+from app.services.payroll_deductions import calculate_deductions
 from app.services.financial_helpers import get_active_session, create_transaction
 from app.schemas.payroll import (
     PayrollPeriodCreate, PayrollEntryUpdate, PayrollExecutePayload, PayrollExecuteResult,
@@ -39,6 +40,26 @@ NOMINA_WORK_ID        = 107  # Administracion
 class PayrollService:
     def __init__(self, db: Session):
         self.db = db
+
+
+    @staticmethod
+    def _apply_cap_to_refs(total, available, refs_list, amount_key):
+        if total <= 0 or not refs_list:
+            return Decimal(0), available
+        if total <= available:
+            return total, available - total
+        remaining = available
+        applied = Decimal(0)
+        for r in refs_list:
+            requested = Decimal(r[amount_key])
+            if remaining <= 0:
+                r[amount_key] = "0"
+                continue
+            take = min(requested, remaining)
+            r[amount_key] = str(take)
+            applied += take
+            remaining -= take
+        return applied, remaining
 
     # ── 1. Generar periodo ─────────────────────────────────────────────────
     def generate_period(self, data: PayrollPeriodCreate, user: User) -> PayrollPeriod:
@@ -69,13 +90,18 @@ class PayrollService:
         for emp in employees:
             gross = Decimal(emp.salary_gross or 0)
             transfer = Decimal(emp.salary_transfer or 0)
-            cash = max(gross - transfer, Decimal(0))
+            deds = calculate_deductions(self.db, emp.id, data.year, data.month)
+            available = gross - transfer
+            adv_capped, available = self._apply_cap_to_refs(deds['advances'], available, deds['refs'].get('advances') or [], 'amount')
+            ret_capped, available = self._apply_cap_to_refs(deds['retentions'], available, deds['refs'].get('retentions') or [], 'amount')
+            loans_capped, available = self._apply_cap_to_refs(deds['loans'], available, deds['refs'].get('loans') or [], 'amount')
+            cash = available
             entry = PayrollEntry(
-                period_id=period.id,
-                employee_id=emp.id,
-                salary_gross=gross,
-                salary_transfer=transfer,
-                cash_amount=cash,
+                period_id=period.id, employee_id=emp.id,
+                salary_gross=gross, salary_transfer=transfer, cash_amount=cash,
+                deduction_advances=adv_capped, deduction_loans=loans_capped,
+                deduction_retentions=ret_capped, deduction_refs=deds['refs'],
+                manual_override=False,
             )
             self.db.add(entry)
 
@@ -127,8 +153,9 @@ class PayrollService:
         if entry.transaction_id:
             raise HTTPException(status_code=400, detail="No se puede editar: entrada ya pagada")
 
-        if data.cash_amount is not None:
+        if data.cash_amount is not None and Decimal(data.cash_amount) != Decimal(entry.cash_amount or 0):
             entry.cash_amount = data.cash_amount
+            entry.manual_override = True
         if data.notes is not None:
             entry.notes = data.notes
 
@@ -190,6 +217,55 @@ class PayrollService:
         # Vincular entry a la transacción
         entry.transaction_id = txn.id
         entry.paid_at = datetime.utcnow()
+
+        # M10b-v2: liquidacion automatica de anticipos/prestamos/retenciones
+        if not entry.manual_override and entry.deduction_refs:
+            from app.schemas.financial_modules import AdvanceLoanRepayByPayroll
+            from app.services import advances_service
+            refs = entry.deduction_refs or {}
+            for adv in (refs.get('advances') or []):
+                try:
+                    advances_service.repay_by_payroll(
+                        self.db, adv['advance_id'],
+                        AdvanceLoanRepayByPayroll(amount=Decimal(adv['amount'])),
+                        user.id,
+                    )
+                except Exception as ex:
+                    self.db.add(AuditLog(
+                        user_id=user.id, delegacion=period.delegacion,
+                        action="PAYROLL_DEDUCTION_ERROR", entity="advance_loan",
+                        entity_id=adv['advance_id'],
+                        details={"error": str(ex), "intended_amount": adv['amount']},
+                    ))
+            for loan in (refs.get('loans') or []):
+                try:
+                    advances_service.repay_by_payroll(
+                        self.db, loan['loan_id'],
+                        AdvanceLoanRepayByPayroll(amount=Decimal(loan['amount'])),
+                        user.id,
+                    )
+                except Exception as ex:
+                    self.db.add(AuditLog(
+                        user_id=user.id, delegacion=period.delegacion,
+                        action="PAYROLL_DEDUCTION_ERROR", entity="advance_loan",
+                        entity_id=loan['loan_id'],
+                        details={"error": str(ex), "intended_amount": loan['amount']},
+                    ))
+            from sqlalchemy import text as _sa_text
+            for ret in (refs.get('retentions') or []):
+                try:
+                    self.db.execute(_sa_text("""
+                        UPDATE retentions_deposits
+                        SET status='released', released_at=NOW(), release_transaction_id=:tid
+                        WHERE id=:rid AND status='pending'
+                    """), {'tid': txn.id, 'rid': ret['retention_id']})
+                except Exception as ex:
+                    self.db.add(AuditLog(
+                        user_id=user.id, delegacion=period.delegacion,
+                        action="PAYROLL_DEDUCTION_ERROR", entity="retention_deposit",
+                        entity_id=ret['retention_id'],
+                        details={"error": str(ex), "intended_amount": ret['amount']},
+                    ))
 
         self.db.add(AuditLog(
             user_id=user.id, delegacion=period.delegacion,
@@ -347,4 +423,9 @@ class PayrollService:
             "transaction_status": tx_status,
             "transaction_reference": tx_ref,
             "paid_at": e.paid_at, "notes": e.notes,
+            "deduction_advances": float(e.deduction_advances or 0),
+            "deduction_loans": float(e.deduction_loans or 0),
+            "deduction_retentions": float(e.deduction_retentions or 0),
+            "deduction_refs": e.deduction_refs,
+            "manual_override": bool(e.manual_override),
         }

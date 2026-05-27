@@ -62,6 +62,7 @@
             <th class="px-3 py-2 text-left">Empleado</th>
             <th class="px-3 py-2 text-right">Bruto</th>
             <th class="px-3 py-2 text-right">Transferencia</th>
+            <th class="px-3 py-2 text-right">Deducciones</th>
             <th class="px-3 py-2 text-right">Efectivo</th>
             <th class="px-3 py-2 text-left">Estado</th>
             <th class="px-3 py-2"></th>
@@ -72,6 +73,12 @@
             <td class="px-3 py-2">{{ e.employee_name }}</td>
             <td class="px-3 py-2 text-right font-mono">{{ Number(e.salary_gross).toLocaleString() }}</td>
             <td class="px-3 py-2 text-right font-mono text-gray-500">{{ Number(e.salary_transfer).toLocaleString() }}</td>
+            <td class="px-3 py-2 text-right font-mono text-red-600 deduction-tooltip relative">
+              <span v-if="totalDeductions(e) > 0" :title="deductionDetail(e)" class="cursor-help underline decoration-dotted">
+                -{{ totalDeductions(e).toLocaleString() }}
+              </span>
+              <span v-else class="text-gray-300">—</span>
+            </td>
             <td class="px-3 py-2 text-right font-mono font-semibold">{{ Number(e.cash_amount).toLocaleString() }}</td>
             <td class="px-3 py-2">
               <span v-if="!e.transaction_id && Number(e.cash_amount) === 0" class="text-gray-400 text-xs">
@@ -135,11 +142,35 @@
       <div class="bg-white rounded p-6 w-full max-w-lg my-4">
         <h2 class="text-lg font-semibold mb-1">Pagar nómina</h2>
         <p class="text-sm text-gray-600 mb-2">{{ payTarget.employee_name }}</p>
-        <div class="bg-gray-50 rounded p-3 mb-3 text-sm">
-          <div class="flex justify-between"><span class="text-gray-500">Importe a pagar en efectivo:</span>
-            <span class="font-mono font-semibold">{{ Number(payTarget.cash_amount).toLocaleString() }} XAF</span></div>
+        <div class="bg-gray-50 rounded p-3 mb-3 text-sm desglose-pago">
           <div class="flex justify-between"><span class="text-gray-500">Periodo:</span>
             <span>{{ monthNames[period.month - 1] }} {{ period.year }}</span></div>
+          <div class="border-t border-gray-200 my-2"></div>
+          <div class="flex justify-between"><span class="text-gray-500">Salario bruto:</span>
+            <span class="font-mono">{{ Number(payTarget.salary_gross).toLocaleString() }} XAF</span></div>
+          <div v-if="Number(payTarget.salary_transfer) > 0" class="flex justify-between"><span class="text-gray-500">Transferencia bancaria:</span>
+            <span class="font-mono text-gray-500">-{{ Number(payTarget.salary_transfer).toLocaleString() }} XAF</span></div>
+          <div v-if="Number(payTarget.deduction_advances) > 0" class="flex justify-between"><span class="text-gray-500">Anticipos pendientes:</span>
+            <span class="font-mono text-red-600">-{{ Number(payTarget.deduction_advances).toLocaleString() }} XAF</span></div>
+          <div v-if="Number(payTarget.deduction_loans) > 0" class="flex justify-between"><span class="text-gray-500">Cuotas de préstamos:</span>
+            <span class="font-mono text-red-600">-{{ Number(payTarget.deduction_loans).toLocaleString() }} XAF</span></div>
+          <div v-if="Number(payTarget.deduction_retentions) > 0" class="flex justify-between"><span class="text-gray-500">Retenciones liberadas:</span>
+            <span class="font-mono text-red-600">-{{ Number(payTarget.deduction_retentions).toLocaleString() }} XAF</span></div>
+          <div v-if="payTarget.deduction_refs && (payTarget.deduction_refs.advances?.length || payTarget.deduction_refs.loans?.length || payTarget.deduction_refs.retentions?.length)" class="text-xs text-gray-500 mt-2 pl-2 border-l-2 border-gray-200">
+            <div v-for="adv in (payTarget.deduction_refs.advances || [])" :key="'a'+adv.advance_id">
+              · Anticipo #{{ adv.advance_id }}: {{ Number(adv.amount).toLocaleString() }} XAF
+            </div>
+            <div v-for="loan in (payTarget.deduction_refs.loans || [])" :key="'l'+loan.loan_id">
+              · Préstamo #{{ loan.loan_id }}: {{ Number(loan.amount).toLocaleString() }} XAF<span v-if="loan.installments"> (cuota de {{ loan.installments }})</span>
+            </div>
+            <div v-for="ret in (payTarget.deduction_refs.retentions || [])" :key="'r'+ret.retention_id">
+              · Retención #{{ ret.retention_id }}: {{ Number(ret.amount).toLocaleString() }} XAF
+            </div>
+          </div>
+          <div class="border-t border-gray-200 my-2"></div>
+          <div class="flex justify-between text-base"><span class="font-semibold">Efectivo a pagar:</span>
+            <span class="font-mono font-bold text-orange-700">{{ Number(payTarget.cash_amount).toLocaleString() }} XAF</span></div>
+          <div v-if="payTarget.manual_override" class="text-xs text-blue-600 mt-1 italic">⚠ Admin ajustó manualmente. Las deducciones no se liquidarán automáticamente.</div>
         </div>
         <div v-if="payErr" class="text-sm text-red-600 mb-2 p-2 bg-red-50 rounded">{{ payErr }}</div>
 
@@ -207,6 +238,30 @@ async function load() {
   const r = await payrollService.getPeriod(route.params.id)
   period.value = r.data
   entries.value = r.data.entries || []
+}
+
+
+function totalDeductions(e) {
+  return Number(e.deduction_advances || 0) + Number(e.deduction_loans || 0) + Number(e.deduction_retentions || 0)
+}
+function deductionDetail(e) {
+  const parts = []
+  if (Number(e.deduction_advances || 0) > 0) parts.push(`Anticipos: ${Number(e.deduction_advances).toLocaleString()} XAF`)
+  if (Number(e.deduction_loans || 0) > 0) parts.push(`Cuotas de préstamos: ${Number(e.deduction_loans).toLocaleString()} XAF`)
+  if (Number(e.deduction_retentions || 0) > 0) parts.push(`Retenciones: ${Number(e.deduction_retentions).toLocaleString()} XAF`)
+  const refs = e.deduction_refs || {}
+  const detailLines = []
+  for (const adv of (refs.advances || [])) {
+    detailLines.push(`  · Anticipo #${adv.advance_id}: ${Number(adv.amount).toLocaleString()} XAF`)
+  }
+  for (const loan of (refs.loans || [])) {
+    detailLines.push(`  · Préstamo #${loan.loan_id}: ${Number(loan.amount).toLocaleString()} XAF` +
+      (loan.installments ? ` (cuota mensual de ${loan.installments})` : ''))
+  }
+  for (const ret of (refs.retentions || [])) {
+    detailLines.push(`  · Retención #${ret.retention_id}: ${Number(ret.amount).toLocaleString()} XAF`)
+  }
+  return parts.join(' | ') + (detailLines.length ? '\n\nDetalle:\n' + detailLines.join('\n') : '')
 }
 
 function openEditEntry(e) {
