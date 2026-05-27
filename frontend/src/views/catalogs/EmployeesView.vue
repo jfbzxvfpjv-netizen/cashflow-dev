@@ -9,8 +9,10 @@
     <div class="flex items-center justify-between mb-6">
       <h1 class="text-2xl font-semibold text-gray-900">Empleados</h1>
       <button
-        v-if="isAdmin"
-        class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
+        :disabled="!isAdmin"
+        :title="!isAdmin ? 'Solo administradores pueden crear empleados' : ''"
+        :class="isAdmin ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'"
+        class="px-4 py-2 text-sm rounded-md"
         @click="openModal(null)"
       >
         + Nuevo empleado
