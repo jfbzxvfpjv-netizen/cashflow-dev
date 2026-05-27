@@ -3,7 +3,11 @@
     <!-- Header + filtros -->
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold">Pagos Fraccionados</h1>
-      <button @click="openCreate" class="bg-blue-600 text-white px-4 py-2 rounded">+ Nuevo</button>
+      <button @click="openCreate"
+                :disabled="!canCreate"
+                :title="canCreate ? '' : tooltipNoPermiso"
+                :class="canCreate ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'"
+                class="px-4 py-2 rounded">+ Nuevo</button>
     </div>
     <div class="mb-4 flex gap-4">
       <select v-model="filterStatus" @change="load" class="min-w-[180px] border rounded px-3 py-2">
@@ -188,7 +192,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+
+// S7: gating del boton +Nuevo segun rol
+const auth = useAuthStore()
+const canCreate = computed(() => ['admin', 'contable'].includes(auth.userRole))
+const tooltipNoPermiso = 'Solo administradores y contables pueden documentar esta operacion'
+
 import api from '../services/api'
 import { installmentsService } from '../services/financialModulesService'
 

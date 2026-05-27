@@ -3,9 +3,11 @@
     <!-- Header -->
     <div class="flex justify-between items-center mb-4">
       <h1 class="text-2xl font-bold">Anticipos y Préstamos</h1>
-      <button @click="openCreate" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-        + Nuevo
-      </button>
+      <button @click="openCreate"
+                :disabled="!canCreate"
+                :title="canCreate ? '' : tooltipNoPermiso"
+                :class="canCreate ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'"
+                class="px-4 py-2 rounded">+ Nuevo</button>
     </div>
 
     <!-- Filtro -->
@@ -211,6 +213,13 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+
+// S7: gating del boton +Nuevo segun rol
+const auth = useAuthStore()
+const canCreate = computed(() => auth.userRole === 'gestor')
+const tooltipNoPermiso = 'Solo los gestores pueden crear movimientos de caja'
+
 import { advancesService } from '../services/financialModulesService'
 import api from '../services/api'
 

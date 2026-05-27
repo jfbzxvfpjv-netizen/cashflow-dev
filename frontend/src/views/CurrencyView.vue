@@ -4,8 +4,16 @@
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold">Operaciones en Divisa</h1>
       <div class="flex gap-2">
-        <button @click="openBuy" class="bg-blue-600 text-white px-4 py-2 rounded">Comprar euros</button>
-        <button @click="openDeliver" class="bg-green-600 text-white px-4 py-2 rounded">Entregar euros</button>
+        <button @click="openBuy"
+                :disabled="!canCreate"
+                :title="canCreate ? '' : tooltipNoPermiso"
+                :class="canCreate ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'"
+                class="px-4 py-2 rounded">Comprar euros</button>
+        <button @click="openDeliver"
+                :disabled="!canCreate"
+                :title="canCreate ? '' : tooltipNoPermiso"
+                :class="canCreate ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'"
+                class="px-4 py-2 rounded">Entregar euros</button>
       </div>
     </div>
 
@@ -236,7 +244,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+
+// S7: gating de los botones de operacion segun rol
+const auth = useAuthStore()
+const canCreate = computed(() => auth.userRole === 'gestor')
+const tooltipNoPermiso = 'Solo los gestores pueden operar con divisas'
+
 import api from '../services/api'
 import { currencyService } from '../services/financialModulesService'
 

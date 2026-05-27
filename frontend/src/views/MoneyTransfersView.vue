@@ -7,9 +7,10 @@
         <p class="text-sm text-gray-500">Western Union, MoneyGram y operadores locales</p>
       </div>
       <button @click="openCreate"
-        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow">
-        + Nuevo envío
-      </button>
+                :disabled="!canCreate"
+                :title="canCreate ? '' : tooltipNoPermiso"
+                :class="canCreate ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'"
+                class="px-4 py-2 rounded">+ Nuevo envío</button>
     </div>
 
     <!-- Panel de posición Bata ↔ Malabo -->
@@ -223,7 +224,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+
+// S7: gating del boton +Nuevo segun rol
+const auth = useAuthStore()
+const canCreate = computed(() => auth.userRole === 'gestor')
+const tooltipNoPermiso = 'Solo los gestores pueden crear movimientos de caja'
+
 import api from '../services/api'
 import { moneyTransfersService } from '../services/financialModulesService'
 
