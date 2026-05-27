@@ -1,0 +1,29 @@
+# Alembic — Migraciones de esquema BD
+
+## Configuracion
+- alembic.ini en /app/alembic.ini
+- env.py construye URL desde POSTGRES_* env vars (igual que app.database)
+- target_metadata = app.database.Base.metadata
+
+## Estado actual
+- Baseline: 33179ff4d0e7 (27/05/2026) — stamp head, NO aplica cambios
+- BD dev y prod marcadas como ya en HEAD
+
+## Crear una migracion nueva
+docker exec -i -w /app cashflow-dev-backend alembic revision --autogenerate -m "descripcion"
+# Revisar el archivo generado en backend/alembic/versions/
+# Eliminar drifts no deseados antes de aplicar
+
+## Aplicar migraciones pendientes
+docker exec -i -w /app cashflow-dev-backend alembic upgrade head
+
+## Ver estado
+docker exec -i -w /app cashflow-dev-backend alembic current
+docker exec -i -w /app cashflow-dev-backend alembic history
+
+## Drifts conocidos (modelo vs BD, sin impacto funcional)
+- transaction_signatures.fingerprint_score: BD SMALLINT, modelo Integer
+- transaction_signatures.fingerprint_attempts: BD SMALLINT, modelo Integer
+- Varios server_default en BD no declarados en modelos
+- Indices de transaction_signatures no en modelo
+Se iran consolidando cuando se haga la primera migracion incremental.
