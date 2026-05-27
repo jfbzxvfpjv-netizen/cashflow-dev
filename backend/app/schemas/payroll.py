@@ -4,7 +4,8 @@ Schemas M10b — Nóminas.
 from datetime import datetime
 from typing import Optional, List
 from decimal import Decimal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from app.utils.text_utils import normalize_text
 
 
 class PayrollPeriodCreate(BaseModel):
@@ -12,7 +13,10 @@ class PayrollPeriodCreate(BaseModel):
     month: int = Field(..., ge=1, le=12)
     delegacion: str = Field(..., pattern=r"^(Bata|Malabo)$")
     notes: Optional[str] = Field(None, max_length=500)
-
+    @field_validator('notes', mode='before')
+    @classmethod
+    def _norm_notes(cls, v):
+        return normalize_text(v) if v else v
 
 class PayrollEntryRead(BaseModel):
     id: int
@@ -56,7 +60,10 @@ class PayrollPeriodDetail(PayrollPeriodRead):
 class PayrollEntryUpdate(BaseModel):
     cash_amount: Optional[Decimal] = Field(None, ge=0)
     notes: Optional[str] = Field(None, max_length=500)
-
+    @field_validator('notes', mode='before')
+    @classmethod
+    def _norm_notes(cls, v):
+        return normalize_text(v) if v else v
 
 class PayrollExecutePayload(BaseModel):
     """Lanzar pagos: lista opcional de entry_ids; si vacía, todas las pendientes del periodo."""

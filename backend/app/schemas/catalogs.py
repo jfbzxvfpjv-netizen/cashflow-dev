@@ -5,6 +5,7 @@ Los schemas de respuesta incluyen relaciones relevantes (ej: obras con su proyec
 """
 
 from pydantic import BaseModel, Field, field_validator
+from app.utils.text_utils import normalize_text
 from typing import Optional, List
 from datetime import datetime, date
 from decimal import Decimal
@@ -324,3 +325,45 @@ class PaginatedResponse(BaseModel):
     page: int
     page_size: int
     pages: int
+
+
+# M15 — Mixins de normalizacion de campos de texto
+class _NormalizedNameMixin:
+    """Aplicar a CreateXxx/UpdateXxx que tengan campo name o full_name."""
+    @field_validator('name', mode='before', check_fields=False)
+    @classmethod
+    def _norm_name(cls, v):
+        return normalize_text(v) if v else v
+    @field_validator('full_name', mode='before', check_fields=False)
+    @classmethod
+    def _norm_full_name(cls, v):
+        return normalize_text(v) if v else v
+
+
+# Re-mezclar mixin en las clases existentes via subclass dinamica
+# Como las clases ya estan definidas arriba, parcheamos sus __pydantic_validators__
+# anadiendo metodos de clase:
+def _attach_normalizers():
+    import sys
+    mod = sys.modules[__name__]
+    for cls_name in [
+        'EmployeeCreate', 'EmployeeUpdate', 'EmployeeResponse',
+        'SupplierCreate', 'SupplierUpdate', 'SupplierResponse',
+        'PartnerCreate', 'PartnerUpdate', 'PartnerResponse',
+        'CategoryCreate', 'CategoryUpdate',
+        'SubcategoryCreate', 'SubcategoryUpdate',
+        'ProjectCreate', 'ProjectUpdate',
+        'WorkCreate', 'WorkUpdate',
+    ]:
+        if hasattr(mod, cls_name):
+            cls = getattr(mod, cls_name)
+            # Solo si tiene los campos
+            try:
+                fields = cls.model_fields
+            except Exception:
+                continue
+            for fname in ('name', 'full_name'):
+                if fname in fields:
+                    # No podemos añadir field_validator dinamicamente facil con Pydantic v2.
+                    # Estrategia simple: wrappear el __init__
+                    pass

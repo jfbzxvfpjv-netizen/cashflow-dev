@@ -226,7 +226,7 @@
         </p>
         <div v-if="merr" class="text-sm text-red-600 mb-3 p-2 bg-red-50 rounded">{{ merr }}</div>
         <label class="block text-xs font-medium text-gray-700 mb-1">Motivo *</label>
-        <textarea v-model="rejectReason" rows="3" class="w-full border rounded px-3 py-1.5 text-sm"
+        <textarea v-model="rejectReason" @blur="rejectReason = normalizeText(rejectReason)" rows="3" class="w-full border rounded px-3 py-1.5 text-sm"
                   placeholder="Explica brevemente por qué se rechaza"></textarea>
         <div class="flex justify-end gap-2 mt-5">
           <button @click="modal = null" class="px-4 py-1.5 text-sm rounded border">Cancelar</button>
@@ -240,6 +240,7 @@
 </template>
 
 <script setup>
+import { normalizeText } from '@/composables/useTextNormalizer'
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import bwSvc from '@/services/bankWithdrawalService'

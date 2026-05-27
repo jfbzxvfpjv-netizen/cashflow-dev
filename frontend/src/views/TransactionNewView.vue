@@ -33,7 +33,7 @@
       <!-- Concepto -->
       <div>
         <label class="block text-sm font-medium mb-1">Concepto *</label>
-        <input v-model="form.concept" type="text" minlength="3"
+        <input v-model="form.concept" @blur="form.concept = normalizeText(form.concept)" type="text" minlength="3"
                class="w-full border rounded px-3 py-2" required />
       </div>
 
@@ -140,6 +140,7 @@ import suggestionService from '@/services/suggestionService'
 import ProjectWorkSelector from '@/components/ProjectWorkSelector.vue'
 import CounterpartySelector from '@/components/CounterpartySelector.vue'
 import SignatureSection from '@/components/admin/SignatureSection.vue'
+import { normalizeText } from '@/composables/useTextNormalizer'
 import { useAuthStore } from '@/stores/auth'
 
 // H-Role guard: solo gestor accede a /transactions/new

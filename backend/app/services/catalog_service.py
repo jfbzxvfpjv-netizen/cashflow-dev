@@ -1,3 +1,13 @@
+from app.utils.text_utils import normalize_text
+
+
+def _normalize_dump(data, *, fields=('name', 'full_name', 'department', 'position')):
+    """Aplica normalize_text a los campos relevantes del dict de data.model_dump()."""
+    d = data.model_dump()
+    for f in fields:
+        if f in d and isinstance(d[f], str):
+            d[f] = normalize_text(d[f])
+    return d
 """
 Módulo 4 — Servicio de catálogos (versión síncrona).
 Lógica de negocio CRUD para todos los catálogos.
@@ -51,7 +61,7 @@ class ProjectService:
     def create_project(db: Session, data, user_id: int):
         if db.query(Project).filter(Project.code == data.code).first():
             raise HTTPException(409, f"Ya existe un proyecto con código '{data.code}'")
-        project = Project(**data.model_dump())
+        project = Project(**_normalize_dump(data))
         db.add(project)
         db.flush()
         _log_audit(db, user_id, None, "CREATE_PROJECT", "projects", project.id)
@@ -105,7 +115,7 @@ class WorkService:
             raise HTTPException(404, "Proyecto no encontrado")
         if db.query(Work).filter(Work.project_id == data.project_id, Work.code == data.code).first():
             raise HTTPException(409, f"Ya existe obra '{data.code}' en proyecto '{project.code}'")
-        work = Work(**data.model_dump())
+        work = Work(**_normalize_dump(data))
         db.add(work)
         db.flush()
         _log_audit(db, user_id, None, "CREATE_WORK", "works", work.id)
@@ -168,7 +178,7 @@ class CategoryService:
     def create_category(db: Session, data, user_id: int):
         if db.query(TransactionCategory).filter(TransactionCategory.name == data.name).first():
             raise HTTPException(409, f"Ya existe categoría '{data.name}'")
-        cat = TransactionCategory(**data.model_dump())
+        cat = TransactionCategory(**_normalize_dump(data))
         db.add(cat)
         db.flush()
         _log_audit(db, user_id, None, "CREATE_CATEGORY", "transaction_categories", cat.id)
@@ -214,7 +224,7 @@ class SubcategoryService:
             TransactionSubcategory.name == data.name
         ).first():
             raise HTTPException(409, f"Ya existe subcategoría '{data.name}' en '{cat.name}'")
-        sub = TransactionSubcategory(**data.model_dump())
+        sub = TransactionSubcategory(**_normalize_dump(data))
         db.add(sub)
         db.flush()
         _log_audit(db, user_id, None, "CREATE_SUBCATEGORY", "transaction_subcategories", sub.id)
@@ -261,7 +271,7 @@ class SupplierService:
     def create_supplier(db: Session, data, user_id: int):
         if db.query(Supplier).filter(Supplier.code == data.code).first():
             raise HTTPException(409, f"Ya existe proveedor con código '{data.code}'")
-        sup = Supplier(**data.model_dump())
+        sup = Supplier(**_normalize_dump(data))
         db.add(sup)
         db.flush()
         _log_audit(db, user_id, None, "CREATE_SUPPLIER", "suppliers", sup.id)
@@ -308,7 +318,7 @@ class EmployeeService:
     def create_employee(db: Session, data, user_id: int):
         if db.query(Employee).filter(Employee.code == data.code).first():
             raise HTTPException(409, f"Ya existe empleado con código '{data.code}'")
-        emp = Employee(**data.model_dump())
+        emp = Employee(**_normalize_dump(data))
         db.add(emp)
         db.flush()
         db.add(EmployeeSalaryHistory(
@@ -373,7 +383,7 @@ class PartnerService:
     def create_partner(db: Session, data, user_id: int):
         if db.query(Partner).filter(Partner.code == data.code).first():
             raise HTTPException(409, f"Ya existe socio con código '{data.code}'")
-        partner = Partner(**data.model_dump())
+        partner = Partner(**_normalize_dump(data))
         db.add(partner)
         db.flush()
         _log_audit(db, user_id, None, "CREATE_PARTNER", "partners", partner.id)
@@ -413,7 +423,7 @@ class CorporateAccountService:
 
     @staticmethod
     def create_account(db: Session, data, user_id: int):
-        acc = CorporateAccount(**data.model_dump())
+        acc = CorporateAccount(**_normalize_dump(data))
         db.add(acc)
         db.flush()
         _log_audit(db, user_id, data.delegacion, "CREATE_CORPORATE_ACCOUNT", "corporate_accounts", acc.id)
@@ -460,7 +470,7 @@ class VehicleService:
     def create_vehicle(db: Session, data, user_id: int):
         if db.query(Vehicle).filter(Vehicle.plate == data.plate).first():
             raise HTTPException(409, f"Ya existe vehículo con matrícula '{data.plate}'")
-        veh = Vehicle(**data.model_dump())
+        veh = Vehicle(**_normalize_dump(data))
         db.add(veh)
         db.flush()
         _log_audit(db, user_id, data.delegacion, "CREATE_VEHICLE", "vehicles", veh.id)

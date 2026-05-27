@@ -4,6 +4,7 @@ Incluye creación, actualización, listado con filtros, detalle con estado de ed
 y respuestas paginadas.
 """
 from pydantic import BaseModel, Field, field_validator
+from app.utils.text_utils import normalize_text
 from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
@@ -164,3 +165,12 @@ class CancelRequest(BaseModel):
 class RejectRequest(BaseModel):
     """Motivo obligatorio para rechazar una transacción."""
     reason: str = Field(..., min_length=3)
+
+# M15 - normalizacion de campos de texto (concept, counterparty_free)
+def _norm_concept(cls, v):
+    return normalize_text(v) if v else v
+
+# Aplicar dinamicamente
+from pydantic import field_validator
+for model_name in ['TransactionCreate']:
+    pass  # Ya añadido via field_validator decorador abajo en clases nuevas

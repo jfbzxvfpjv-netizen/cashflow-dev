@@ -117,7 +117,7 @@
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-700 mb-1">Notas</label>
-            <textarea v-model="editForm.notes" rows="2" class="w-full border rounded px-2 py-1.5 text-sm"></textarea>
+            <textarea v-model="editForm.notes" @blur="editForm.notes = normalizeText(editForm.notes)" rows="2" class="w-full border rounded px-2 py-1.5 text-sm"></textarea>
           </div>
         </div>
         <div class="flex justify-end gap-2 mt-4">
@@ -169,6 +169,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import payrollService from '@/services/payrollService'
 import { useAuthStore } from '@/stores/auth'
+import { normalizeText } from '@/composables/useTextNormalizer'
 import SignatureSection from '@/components/admin/SignatureSection.vue'
 
 const route = useRoute()
