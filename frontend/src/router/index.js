@@ -104,7 +104,19 @@ const routes = [
   { path: '/currency-ops',         name: 'CurrencyOps',          component: CurrencyView,             meta: { requiresAuth: true } },
   { path: '/partner-accounts',     name: 'PartnerAccounts',      component: PartnerAccountsView,      meta: { requiresAuth: true } },
   { path: '/reimbursable-expenses',name: 'ReimbursableExpenses', component: ReimbursableExpensesView, meta: { requiresAuth: true } },
-  { path: '/money-transfers',      name: 'MoneyTransfers',       component: MoneyTransfersView,       meta: { requiresAuth: true } },
+  { path: '/money-transfers',      name: 'MoneyTransfers',       component: MoneyTransfersView,       meta: { requiresAuth: true } },,
+  {
+    path: '/payrolls',
+    name: 'Payrolls',
+    component: () => import('@/views/PayrollPeriodsView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/payrolls/:id',
+    name: 'PayrollDetail',
+    component: () => import('@/views/PayrollPeriodDetailView.vue'),
+    meta: { requiresAuth: true }
+  }
 ]
 
 const router = createRouter({ history: createWebHistory(), routes })

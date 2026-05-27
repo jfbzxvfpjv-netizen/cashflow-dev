@@ -1,3 +1,4 @@
+from app.routers import payroll
 """
 Router principal — /api/v1
 Centraliza todos los routers de la API. Cada módulo añade su router aquí.
@@ -104,3 +105,4 @@ api_router.include_router(suggestions_router)
 # --- M11: Verificacion biometrica de huella ---
 from app.routers.fingerprints import router as fingerprints_router
 api_router.include_router(fingerprints_router)
+api_router.include_router(payroll.router)
