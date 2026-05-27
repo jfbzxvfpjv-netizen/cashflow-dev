@@ -30,6 +30,8 @@ class ProjectResponse(BaseModel):
     code: str
     name: str
     description: Optional[str]
+    counterparty_type: str = "external"
+    requires_vehicle: bool = False
     active: bool
     created_at: datetime
     works_count: int = 0
@@ -90,6 +92,8 @@ class CategoryResponse(BaseModel):
     name: str
     type: str
     requires_attachment: bool
+    counterparty_type: str = "external"
+    requires_vehicle: bool = False
     active: bool
     created_at: datetime
     subcategories_count: int = 0

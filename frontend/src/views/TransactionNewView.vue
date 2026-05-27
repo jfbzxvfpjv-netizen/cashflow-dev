@@ -87,12 +87,13 @@
       <!-- Contraparte -->
       <div>
         <label class="block text-sm font-medium mb-1">Contraparte *</label>
+        <p v-if="counterpartyHint" class="text-xs text-gray-600 mb-1 italic">{{ counterpartyHint }}</p>
         <CounterpartySelector @update="onCounterpartyChange" />
       </div>
 
       <!-- Vehículo (opcional) -->
       <div>
-        <label class="block text-sm font-medium mb-1">Vehículo (opcional)</label>
+        <label class="block text-sm font-medium mb-1">Vehículo <span v-if="vehicleRequired" class="text-red-500">*</span><span v-else class="text-gray-500 text-xs">(opcional)</span></label>
         <select v-model="form.vehicle_id" class="w-full border rounded px-3 py-2">
           <option :value="null">— Ninguno —</option>
           <option v-for="v in vehicles" :key="v.id" :value="v.id">{{ v.plate }} {{ v.brand || '' }}</option>
@@ -173,6 +174,23 @@ const userEditedCategory = ref(false)
 
 // F5: estado de la firma capturada por SignatureSection
 const signaturePayload = ref(null)
+
+// Reglas de contraparte y vehiculo segun categoria (M14)
+const selectedCategoryMeta = computed(() => {
+  const cat = categories.value.find(c => c.id === form.value.category_id)
+  return cat || null
+})
+const expectedCounterparty = computed(() => selectedCategoryMeta.value?.counterparty_type || null)
+const vehicleRequired = computed(() => !!selectedCategoryMeta.value?.requires_vehicle)
+const counterpartyHintMap = {
+  employee: 'Esta categoría requiere seleccionar un empleado.',
+  supplier: 'Esta categoría requiere seleccionar un proveedor.',
+  partner:  'Esta categoría requiere seleccionar un socio.',
+  external: 'Esta categoría requiere texto libre (no usar el catálogo).',
+  any:      'Selecciona contraparte del catálogo o introduce texto libre.',
+  none:     'Operación interna: no admite contraparte.',
+}
+const counterpartyHint = computed(() => expectedCounterparty.value ? counterpartyHintMap[expectedCounterparty.value] : null)
 
 // D: umbrales de aprobacion (M10a) — para warning preventivo al gestor
 const thresholds = ref([])
@@ -312,6 +330,32 @@ async function submit() {
   if (!signaturePayload.value) {
     error.value = 'Falta capturar la firma de la contraparte'
     return
+  }
+  // M14: validar contraparte y vehiculo segun la categoria seleccionada
+  if (expectedCounterparty.value) {
+    const ct = expectedCounterparty.value
+    const cf = (form.value.counterparty_free || '').trim()
+    if (ct === 'employee' && !form.value.employee_id) {
+      error.value = 'Esta categoría requiere seleccionar un empleado'; return
+    }
+    if (ct === 'supplier' && !form.value.supplier_id) {
+      error.value = 'Esta categoría requiere seleccionar un proveedor'; return
+    }
+    if (ct === 'partner' && !form.value.partner_id) {
+      error.value = 'Esta categoría requiere seleccionar un socio'; return
+    }
+    if (ct === 'external' && !cf) {
+      error.value = 'Esta categoría requiere identificar la contraparte con texto libre'; return
+    }
+    if (ct === 'any' && !(form.value.employee_id || form.value.supplier_id || form.value.partner_id || cf)) {
+      error.value = 'Esta categoría requiere una contraparte (catálogo o texto libre)'; return
+    }
+    if (ct === 'none' && (form.value.employee_id || form.value.supplier_id || form.value.partner_id || cf)) {
+      error.value = 'Esta categoría es operación interna y no admite contraparte'; return
+    }
+  }
+  if (vehicleRequired.value && !form.value.vehicle_id) {
+    error.value = 'Esta categoría requiere seleccionar un vehículo'; return
   }
   // Validar proyectos/obras: cada item debe tener ambos campos completos
   const projsValid = (form.value.projects || []).filter(p => p && p.project_id && p.work_id)

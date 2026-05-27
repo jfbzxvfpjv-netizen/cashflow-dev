@@ -50,6 +50,8 @@ class TransactionCategory(Base):
     name = Column(String(100), nullable=False)
     type = Column(String(10), nullable=False)
     requires_attachment = Column(Boolean, default=True)
+    counterparty_type = Column(String(20), nullable=False, default='external')
+    requires_vehicle = Column(Boolean, nullable=False, default=False)
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
 
