@@ -107,6 +107,49 @@
       </div>
     </div>
 
+    <!-- M13: Distribución por categoría + Top contrapartes -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div class="bg-white rounded-xl shadow p-5">
+        <h3 class="text-sm font-semibold text-gray-700 mb-3">Distribución de gastos por categoría</h3>
+        <div style="height:280px">
+          <Doughnut v-if="chartDonutData" :data="chartDonutData" :options="chartDonutOpts" />
+          <p v-else class="text-sm text-gray-400 text-center pt-20">Sin gastos en el periodo</p>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow p-5">
+        <h3 class="text-sm font-semibold text-gray-700 mb-3">Top contrapartes del periodo</h3>
+        <div v-if="data.top_contrapartes && data.top_contrapartes.length" class="space-y-2 text-sm">
+          <div v-for="(c, idx) in data.top_contrapartes" :key="idx" class="flex items-center gap-2">
+            <span class="text-xs text-gray-400 w-5">{{ idx + 1 }}.</span>
+            <span class="text-xs px-1.5 py-0.5 rounded font-medium"
+                  :class="c.tipo === 'Empleado' ? 'bg-blue-100 text-blue-800' : c.tipo === 'Proveedor' ? 'bg-amber-100 text-amber-800' : 'bg-purple-100 text-purple-800'">
+              {{ c.tipo }}
+            </span>
+            <span class="flex-1 truncate" :title="c.name">{{ c.name }}</span>
+            <span class="text-xs text-gray-500">{{ c.count }} mov.</span>
+            <span class="font-mono text-xs w-24 text-right">{{ Number(c.amount).toLocaleString() }}</span>
+          </div>
+        </div>
+        <p v-else class="text-sm text-gray-400 text-center pt-20">Sin movimientos en el periodo</p>
+      </div>
+    </div>
+
+    <!-- M13: Comparativa Bata vs Malabo (solo consolidado) -->
+    <div v-if="data.comparativa_delegaciones" class="bg-white rounded-xl shadow p-5 mb-6">
+      <h3 class="text-sm font-semibold text-gray-700 mb-3">Comparativa por delegación (periodo)</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div v-for="d in ['Bata','Malabo']" :key="d" class="border rounded-lg p-3">
+          <div class="text-xs text-gray-500 uppercase font-semibold mb-2">{{ d }}</div>
+          <div class="grid grid-cols-2 gap-2 text-sm">
+            <div><span class="text-gray-500">Saldo actual:</span> <span class="font-mono font-semibold">{{ Number(data.comparativa_delegaciones[d].saldo_actual).toLocaleString() }}</span></div>
+            <div><span class="text-gray-500">Movimientos:</span> <span class="font-semibold">{{ data.comparativa_delegaciones[d].count }}</span></div>
+            <div class="text-green-700"><span class="text-gray-500">Ingresos:</span> <span class="font-mono">{{ Number(data.comparativa_delegaciones[d].ingresos).toLocaleString() }}</span></div>
+            <div class="text-red-700"><span class="text-gray-500">Egresos:</span> <span class="font-mono">{{ Number(data.comparativa_delegaciones[d].egresos).toLocaleString() }}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Filtros inline de la tabla -->
     <div class="bg-white rounded-xl shadow p-4 mb-2">
       <div class="flex flex-wrap items-center gap-3">
@@ -200,16 +243,15 @@ import { useAuthStore } from '@/stores/auth'
 import dashboardService from '@/services/dashboardService'
 import reportService from '@/services/reportService'
 import api from '@/services/api'
-import { Line, Bar } from 'vue-chartjs'
+import { Line, Bar, Doughnut } from 'vue-chartjs'
 import {
   Chart as ChartJS, CategoryScale, LinearScale,
-  PointElement, LineElement, BarElement,
-  Title, Tooltip, Legend, Filler
+  PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler
 } from 'chart.js'
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement, LineElement,
-  BarElement, Title, Tooltip, Legend, Filler
+  BarElement, ArcElement, Title, Tooltip, Legend, Filler
 )
 
 const router = useRouter()
@@ -222,7 +264,10 @@ const data = ref({
   alertas: { pending_approval: 0, bank_withdrawals_pending: 0 },
   movimientos: { items: [], total: 0, page: 1, pages: 0 },
   grafico_evolucion: [],
-  grafico_ingresos_egresos: []
+  grafico_ingresos_egresos: [],
+  distribucion_categoria: [],
+  top_contrapartes: [],
+  comparativa_delegaciones: null
 })
 const movimientos = ref({ items: [], total: 0, page: 1, pages: 0, page_size: 50 })
 const categories = ref([])
@@ -338,9 +383,38 @@ const chartBarrasData = computed(() => {
 })
 const chartBarrasOpts = {
   responsive: true, maintainAspectRatio: false,
-  plugins: { legend: { position: 'top' }, tooltip: { mode: 'index', intersect: false } },
-  scales: { y: { ticks: { callback: v => (v/1e6).toFixed(1) + 'M' } }, x: { ticks: { maxTicksLimit: 15 } } }
+  plugins: { legend: { position: 'top' } }
 }
+// M13 — Distribucion por categoria (donut)
+const chartDonutData = computed(() => {
+  const items = data.value.distribucion_categoria || []
+  if (!items.length) return null
+  const palette = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#6b7280']
+  return {
+    labels: items.map(i => i.category_name),
+    datasets: [{
+      data: items.map(i => i.amount),
+      backgroundColor: items.map((_, idx) => palette[idx % palette.length]),
+      borderWidth: 1
+    }]
+  }
+})
+const chartDonutOpts = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } },
+    tooltip: {
+      callbacks: {
+        label: (ctx) => `${ctx.label}: ${Number(ctx.parsed).toLocaleString()} XAF`
+      }
+    }
+  }
+}
+const topContrapartesMax = computed(() => {
+  const items = data.value.top_contrapartes || []
+  return items.length ? Math.max(...items.map(i => i.amount)) : 0
+})
 
 // --- Cargar datos ---
 async function loadDashboard() {

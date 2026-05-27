@@ -350,6 +350,133 @@ class DashboardService:
             } for row in rows]
 
     @classmethod
+    def get_distribucion_categoria(
+        cls,
+        db,
+        delegacion=None,
+        date_start=None,
+        date_end=None,
+        tipo='expense',
+        top=8,
+    ):
+        """Distribucion del periodo por categoria. Top N + 'Otros'."""
+        from app.models.catalogs import TransactionCategory
+        if not date_start:
+            date_start = date.today().replace(day=1)
+        if not date_end:
+            date_end = date.today()
+        filters = [
+            Transaction.approval_status == 'approved',
+            Transaction.cancelled == False,
+            Transaction.type == tipo,
+            cast(Transaction.created_at, Date) >= date_start,
+            cast(Transaction.created_at, Date) <= date_end,
+        ]
+        if delegacion and delegacion != 'Consolidado':
+            filters.append(Transaction.delegacion == delegacion)
+        rows = (
+            db.query(
+                TransactionCategory.id,
+                TransactionCategory.name,
+                func.coalesce(func.sum(Transaction.amount), 0).label('total'),
+                func.count(Transaction.id).label('count'),
+            )
+            .join(Transaction, Transaction.category_id == TransactionCategory.id)
+            .filter(*filters)
+            .group_by(TransactionCategory.id, TransactionCategory.name)
+            .order_by(func.sum(Transaction.amount).desc())
+            .all()
+        )
+        items = [
+            {'category_id': r[0], 'category_name': r[1], 'amount': float(r[2]), 'count': r[3]}
+            for r in rows
+        ]
+        if len(items) > top:
+            top_items = items[:top]
+            rest = items[top:]
+            other = {
+                'category_id': None,
+                'category_name': f'Otros ({len(rest)})',
+                'amount': sum(x['amount'] for x in rest),
+                'count': sum(x['count'] for x in rest),
+            }
+            return top_items + [other]
+        return items
+
+    @classmethod
+    def get_top_contrapartes(
+        cls,
+        db,
+        delegacion=None,
+        date_start=None,
+        date_end=None,
+        limit=10,
+    ):
+        """Top contrapartes por importe del periodo (empleados/proveedores/socios)."""
+        from app.models.catalogs import Employee, Supplier, Partner
+        if not date_start:
+            date_start = date.today().replace(day=1)
+        if not date_end:
+            date_end = date.today()
+        base = [
+            Transaction.approval_status == 'approved',
+            Transaction.cancelled == False,
+            cast(Transaction.created_at, Date) >= date_start,
+            cast(Transaction.created_at, Date) <= date_end,
+        ]
+        if delegacion and delegacion != 'Consolidado':
+            base.append(Transaction.delegacion == delegacion)
+        result = []
+        emp_rows = (db.query(Employee.id, Employee.full_name,
+                func.coalesce(func.sum(Transaction.amount), 0),
+                func.count(Transaction.id))
+            .join(Transaction, Transaction.employee_id == Employee.id)
+            .filter(*base).group_by(Employee.id, Employee.full_name).all())
+        for r in emp_rows:
+            result.append({'tipo': 'Empleado', 'name': r[1], 'amount': float(r[2]), 'count': r[3]})
+        sup_rows = (db.query(Supplier.id, Supplier.name,
+                func.coalesce(func.sum(Transaction.amount), 0),
+                func.count(Transaction.id))
+            .join(Transaction, Transaction.supplier_id == Supplier.id)
+            .filter(*base).group_by(Supplier.id, Supplier.name).all())
+        for r in sup_rows:
+            result.append({'tipo': 'Proveedor', 'name': r[1], 'amount': float(r[2]), 'count': r[3]})
+        par_rows = (db.query(Partner.id, Partner.full_name,
+                func.coalesce(func.sum(Transaction.amount), 0),
+                func.count(Transaction.id))
+            .join(Transaction, Transaction.partner_id == Partner.id)
+            .filter(*base).group_by(Partner.id, Partner.full_name).all())
+        for r in par_rows:
+            result.append({'tipo': 'Socio', 'name': r[1], 'amount': float(r[2]), 'count': r[3]})
+        result.sort(key=lambda x: x['amount'], reverse=True)
+        return result[:limit]
+
+    @classmethod
+    def get_comparativa_delegaciones(cls, db, date_start=None, date_end=None):
+        """Comparativa Bata vs Malabo: ingresos, egresos, saldo, count del periodo."""
+        if not date_start:
+            date_start = date.today().replace(day=1)
+        if not date_end:
+            date_end = date.today()
+        out = {}
+        for d in ('Bata', 'Malabo'):
+            filt = [
+                Transaction.approval_status == 'approved',
+                Transaction.cancelled == False,
+                Transaction.delegacion == d,
+                cast(Transaction.created_at, Date) >= date_start,
+                cast(Transaction.created_at, Date) <= date_end,
+            ]
+            ing = float(db.query(func.coalesce(func.sum(Transaction.amount), 0))
+                .filter(*filt, Transaction.type == 'income').scalar() or 0)
+            egr = float(db.query(func.coalesce(func.sum(Transaction.amount), 0))
+                .filter(*filt, Transaction.type == 'expense').scalar() or 0)
+            count = db.query(func.count(Transaction.id)).filter(*filt).scalar() or 0
+            saldo = float(cls.get_saldo_actual(db, d))
+            out[d] = {'ingresos': ing, 'egresos': egr, 'count': count, 'saldo_actual': saldo}
+        return out
+
+    @classmethod
     def get_summary(
         cls,
         db: Session,
@@ -381,6 +508,16 @@ class DashboardService:
             db, delegacion, date_start, date_end
         )
 
+        distribucion_cat = cls.get_distribucion_categoria(
+            db, delegacion, date_start, date_end, tipo='expense'
+        )
+        top_contrapartes = cls.get_top_contrapartes(
+            db, delegacion, date_start, date_end, limit=10
+        )
+        comparativa = None
+        if not delegacion or delegacion == 'Consolidado':
+            comparativa = cls.get_comparativa_delegaciones(db, date_start, date_end)
+
         return {
             "saldo_actual": float(saldo),
             "ingresos_hoy": indicadores["ingresos_hoy"],
@@ -389,5 +526,8 @@ class DashboardService:
             "alertas": alertas,
             "movimientos": movimientos,
             "grafico_evolucion": grafico_evolucion,
-            "grafico_ingresos_egresos": grafico_barras
+            "grafico_ingresos_egresos": grafico_barras,
+            "distribucion_categoria": distribucion_cat,
+            "top_contrapartes": top_contrapartes,
+            "comparativa_delegaciones": comparativa,
         }
