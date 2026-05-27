@@ -248,21 +248,6 @@ async def get_transaction(
     return TransactionDetail.model_validate({**txn.__dict__, **enriched})
 
 
-@router.put("/{txn_id}/approve", response_model=TransactionOut)
-async def approve_transaction(
-    txn_id: int,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_role("admin"))
-):
-    """Aprueba una transacción pendiente de aprobación."""
-    try:
-        txn = TransactionService.approve_transaction(db, txn_id, user)
-        enriched = _enrich_transaction(db, txn)
-        return TransactionOut.model_validate({**txn.__dict__, **enriched})
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
 @router.put("/{txn_id}/reject", response_model=TransactionOut)
 async def reject_transaction(
     txn_id: int,
@@ -278,17 +263,3 @@ async def reject_transaction(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
-@router.put("/{txn_id}/execute", response_model=TransactionOut)
-async def execute_transaction(
-    txn_id: int,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_role("gestor", "admin"))
-):
-    """El Gestor confirma la ejecución física del pago autorizado."""
-    try:
-        txn = TransactionService.execute_transaction(db, txn_id, user)
-        enriched = _enrich_transaction(db, txn)
-        return TransactionOut.model_validate({**txn.__dict__, **enriched})
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))

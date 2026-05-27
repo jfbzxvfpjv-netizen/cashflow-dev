@@ -111,13 +111,6 @@ class DashboardService:
             *deleg_filters_tx
         ).scalar() or 0
 
-        # Transacciones autorizadas pendientes de ejecución
-        authorized_pending = db.query(func.count(Transaction.id)).filter(
-            Transaction.approval_status == 'authorized',
-            Transaction.cancelled == False,
-            *deleg_filters_tx
-        ).scalar() or 0
-
         # Retiradas bancarias pendientes (pending o approved sin confirmar)
         bank_pending = db.query(func.count(BankWithdrawalRequest.id)).filter(
             BankWithdrawalRequest.status.in_(['pending', 'approved']),
@@ -126,7 +119,6 @@ class DashboardService:
 
         return {
             "pending_approval": pending_approval,
-            "authorized_pending": authorized_pending,
             "bank_withdrawals_pending": bank_pending
         }
 

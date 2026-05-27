@@ -50,17 +50,6 @@
         </div>
         <span class="text-amber-400">→</span>
       </div>
-      <div v-if="data.alertas.authorized_pending > 0"
-        class="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-3 cursor-pointer hover:bg-blue-100 transition"
-        @click="$router.push('/transactions?approval_status=authorized')">
-        <div class="flex items-center gap-3">
-          <span class="text-blue-500 text-xl">🔵</span>
-          <span class="text-sm text-blue-800 font-medium">
-            {{ data.alertas.authorized_pending }} transacción(es) autorizada(s) pendiente(s) de ejecución
-          </span>
-        </div>
-        <span class="text-blue-400">→</span>
-      </div>
       <div v-if="data.alertas.bank_withdrawals_pending > 0"
         class="flex items-center justify-between bg-indigo-50 border border-indigo-200 rounded-lg p-3 cursor-pointer hover:bg-indigo-100 transition"
         @click="$router.push('/bank-withdrawals')">
@@ -230,7 +219,7 @@ const auth = useAuthStore()
 const loading = ref(false)
 const data = ref({
   saldo_actual: 0, ingresos_hoy: 0, egresos_hoy: 0, transacciones_hoy: 0,
-  alertas: { pending_approval: 0, authorized_pending: 0, bank_withdrawals_pending: 0 },
+  alertas: { pending_approval: 0, bank_withdrawals_pending: 0 },
   movimientos: { items: [], total: 0, page: 1, pages: 0 },
   grafico_evolucion: [],
   grafico_ingresos_egresos: []
@@ -302,7 +291,7 @@ function estadoClass(e) {
 // --- Alertas ---
 const hasAlerts = computed(() => {
   const a = data.value.alertas
-  return a && (a.pending_approval > 0 || a.authorized_pending > 0 || a.bank_withdrawals_pending > 0)
+  return a && (a.pending_approval > 0 || a.bank_withdrawals_pending > 0)
 })
 
 // --- Gráficos ---
