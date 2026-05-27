@@ -66,24 +66,39 @@ class BankWithdrawalRequest(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     delegacion = Column(String(10), nullable=False)
-    corporate_account_id = Column(Integer, ForeignKey("corporate_accounts.id"), nullable=False)
+    # H2: NULLABLE - no se conocen hasta FORMALIZAR
+    corporate_account_id = Column(Integer, ForeignKey("corporate_accounts.id"), nullable=True)
     amount = Column(Numeric(12, 2), nullable=False)
-    cheque_reference = Column(String(100), nullable=False)
+    cheque_reference = Column(String(100), nullable=True)
+
+    # H2: campos del flujo 4 pasos
+    # Paso 1 SOLICITAR (gestor)
+    requested_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    requested_at = Column(DateTime, nullable=True)
+    reason = Column(Text, nullable=True)
+    # Paso 2 FORMALIZAR (contable)
+    formalized_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    formalized_at = Column(DateTime, nullable=True)
+
+    # Backward compat: proposed_by se rellena automaticamente con requested_by al crear
     proposed_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     proposed_at = Column(DateTime, default=datetime.utcnow)
+
+    # Paso 3 APROBAR (admin) / Paso 4 CONFIRMAR (gestor)
     approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     approved_at = Column(DateTime, nullable=True)
     confirmed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     confirmed_at = Column(DateTime, nullable=True)
+
     session_id = Column(Integer, ForeignKey("cash_sessions.id"), nullable=True)
-    status = Column(String(15), default="pending")
+    status = Column(String(20), default="requested")
     rejection_reason = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
 
     corporate_account = relationship("CorporateAccount", foreign_keys=[corporate_account_id])
 
     __table_args__ = (
-        CheckConstraint("status IN ('pending','approved','confirmed','rejected')", name="ck_bw_status"),
+        CheckConstraint("status IN ('requested','formalized','approved','confirmed','rejected')", name="ck_bw_status"),
         CheckConstraint("amount > 0", name="ck_bw_amount_pos"),
     )
 
