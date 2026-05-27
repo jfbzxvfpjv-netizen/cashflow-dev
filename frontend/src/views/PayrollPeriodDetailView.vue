@@ -261,7 +261,7 @@ async function doPay() {
     partner_id: null,
   }
   if (isFp) {
-    signature.fingerprint_score = sp.fingerprint_score
+    signature.fingerprint_score = Math.round(Number(sp.fingerprint_score) || 0)
     signature.fingerprint_finger_position = sp.fingerprint_finger_position
     signature.fingerprint_attempts = sp.fingerprint_attempts
   } else {

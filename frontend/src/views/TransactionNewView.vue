@@ -320,7 +320,7 @@ async function submit() {
     }
 
     if (signaturePayload.value.signature_method === 'fingerprint') {
-      signature.fingerprint_score = signaturePayload.value.fingerprint_score
+      signature.fingerprint_score = Math.round(Number(signaturePayload.value.fingerprint_score) || 0)
       signature.fingerprint_finger_position = signaturePayload.value.fingerprint_finger_position
       signature.fingerprint_attempts = signaturePayload.value.fingerprint_attempts
     } else {
@@ -330,8 +330,8 @@ async function submit() {
     }
 
     const body = { ...form.value, signature }
-    const { data } = await transactionService.create(body)
-    router.push('/transactions/' + data.id)
+      const { data } = await transactionService.create(body)
+      router.push('/transactions/' + data.id)
     form.value = {
       type: 'expense', amount: null, concept: '',
       category_id: null, subcategory_id: null,
