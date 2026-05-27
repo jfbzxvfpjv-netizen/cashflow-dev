@@ -3,8 +3,8 @@ Schemas — Retiradas bancarias (flujo 4 pasos: Gestor solicita -> Contable form
 """
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, field_validator
-from app.utils.text_utils import normalize_text, Field
+from pydantic import BaseModel, Field, field_validator
+from app.utils.text_utils import normalize_text
 
 
 class BankWithdrawalRead(BaseModel):
@@ -72,10 +72,6 @@ class BankWithdrawalApprove(BaseModel):
 class BankWithdrawalReject(BaseModel):
     """Paso 3b: admin RECHAZA (puede ocurrir desde requested o formalized)."""
     rejection_reason: str = Field(..., min_length=5, max_length=500)
-    @field_validator('reason', mode='before')
-    @classmethod
-    def _norm_reason(cls, v):
-        return normalize_text(v) if v else v
     @field_validator('rejection_reason', mode='before')
     @classmethod
     def _norm_rejection_reason(cls, v):
