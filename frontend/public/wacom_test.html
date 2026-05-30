@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Test WebHID Wacom STU-430</title></head>
+<body style="font-family: sans-serif; padding: 30px; max-width: 700px;">
+<h2>Test WebHID + Wacom STU-430</h2>
+
+<div id="status" style="padding: 15px; background: #ffe; margin: 15px 0; border-left: 4px solid orange;">
+  Pulsa "Buscar Wacom" y autoriza el dispositivo en la ventana emergente.
+</div>
+
+<button id="buscar" style="padding: 12px 24px; font-size: 16px; cursor: pointer;">
+  Buscar Wacom
+</button>
+
+<pre id="log" style="background: #f4f4f4; padding: 15px; margin-top: 20px; white-space: pre-wrap; font-size: 13px;"></pre>
+
+<script>
+const status = document.getElementById('status');
+const log = document.getElementById('log');
+const btn = document.getElementById('buscar');
+
+function add(msg) {
+  log.textContent += msg + '\n';
+}
+
+btn.addEventListener('click', async () => {
+  log.textContent = '';
+  if (!('hid' in navigator)) {
+    status.innerHTML = '<b style="color:red;">✗ WebHID NO soportado en este navegador</b>';
+    return;
+  }
+  add('✓ WebHID disponible en este Chrome');
+
+  try {
+    const devices = await navigator.hid.requestDevice({
+      filters: [{ vendorId: 0x056A }]  // Wacom
+    });
+    if (devices.length === 0) {
+      status.innerHTML = '<b style="color:orange;">No se seleccionó ningún dispositivo</b>';
+      add('Usuario canceló o no había Wacom disponible');
+      return;
+    }
+    const d = devices[0];
+    status.innerHTML = '<b style="color:green;">✓ Wacom detectada por WebHID</b>';
+    add('Producto: ' + d.productName);
+    add('Vendor ID: 0x' + d.vendorId.toString(16).padStart(4, '0'));
+    add('Product ID: 0x' + d.productId.toString(16).padStart(4, '0'));
+    add('Collections: ' + d.collections.length);
+
+    // Intentar abrir
+    if (!d.opened) await d.open();
+    add('✓ Dispositivo abierto');
+    add('Conexión Chrome ↔ Wacom OK. Cadena lista para integrar.');
+  } catch (e) {
+    status.innerHTML = '<b style="color:red;">✗ Error: ' + e.message + '</b>';
+    add('Error: ' + e.message);
+  }
+});
+</script>
+</body>
+</html>
