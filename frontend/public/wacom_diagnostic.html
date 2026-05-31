@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Wacom STU-430</title></head>
+<body style="font-family: sans-serif; padding: 20px;">
+<h2>Wacom STU-430 — captura de firma</h2>
+
+<div id="status" style="padding: 10px; background: #ffe; margin: 10px 0;">
+  Pulsa "Conectar", selecciona STU-430, y firma en la Wacom.
+</div>
+
+<button id="conectar" style="padding: 10px 20px; font-size: 14px;">Conectar</button>
+<button id="limpiar" style="padding: 10px 20px; font-size: 14px;">Limpiar canvas</button>
+<button id="limpiarLCD" style="padding: 10px 20px; font-size: 14px;">Limpiar LCD Wacom</button>
+
+<div style="margin-top: 12px;">
+  <canvas id="canvas" width="640" height="240" style="border: 2px solid #888; background: #fff;"></canvas>
+</div>
+
+<div style="margin-top: 8px; font-size: 12px; color: #555;">
+  <b>Capabilities (feature 0x09):</b> <span id="caps">—</span>
+</div>
+
+<div style="margin-top: 10px; font-size: 12px;">
+  <b>Últimos reports:</b>
+  <pre id="log" style="background: #f4f4f4; padding: 8px; height: 110px; overflow: auto;"></pre>
+</div>
+
+<script>
+const status = document.getElementById('status');
+const log = document.getElementById('log');
+const caps = document.getElementById('caps');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+ctx.lineCap = 'round';
+ctx.strokeStyle = '#000';
+ctx.lineWidth = 2;
+
+let device = null;
+let lastX = null, lastY = null;
+// Defaults provisionales; se actualizan al leer feature 0x09
+let TABLET_W = 10800;
+let TABLET_H = 6000;
+
+function clearCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  lastX = null; lastY = null;
+}
+
+document.getElementById('limpiar').onclick = clearCanvas;
+document.getElementById('limpiarLCD').onclick = async () => {
+  if (!device) { status.innerHTML = '<b style="color:red;">No conectado</b>'; return; }
+  try {
+    await device.sendFeatureReport(0x20, new Uint8Array([0]));
+    status.innerHTML = '<b style="color:green;">✓ Comando clearScreen (0x20) enviado</b>';
+  } catch (e) {
+    status.innerHTML = '<b style="color:red;">Error 0x20: ' + e.message + '</b>';
+  }
+};
+
+document.getElementById('conectar').onclick = async () => {
+  status.innerHTML = '<b style="color:orange;">Solicitando dispositivo...</b>';
+  const devs = await navigator.hid.requestDevice({ filters: [{ vendorId: 0x056A }] });
+  if (!devs.length) { status.innerHTML = '<b style="color:red;">Cancelado</b>'; return; }
+  device = devs[0];
+  try {
+    if (!device.opened) await device.open();
+  } catch (e) {
+    status.innerHTML = '<b style="color:red;">Error abriendo: ' + e.message + '</b>';
+    return;
+  }
+
+  // Leer capabilities reales
+  try {
+    const dv = await device.receiveFeatureReport(0x09);
+    const bytes = Array.from(new Uint8Array(dv.buffer)).slice(0, 12);
+    const hex = bytes.map(b => b.toString(16).padStart(2,'0')).join(' ');
+    // Probar layout estándar Wacom STU: tabletWidth @1, tabletHeight @3, screenW @7, screenH @9
+    const tw = dv.getUint16(1);
+    const th = dv.getUint16(3);
+    const sw = dv.getUint16(7);
+    const sh = dv.getUint16(9);
+    caps.textContent = `bytes: ${hex} | tabletWidth=${tw} tabletHeight=${th} screenW=${sw} screenH=${sh}`;
+    if (tw > 1000 && th > 1000) {
+      TABLET_W = tw;
+      TABLET_H = th;
+    }
+  } catch (e) {
+    caps.textContent = 'fallo leyendo 0x09: ' + e.message + ' (usando defaults)';
+  }
+
+  clearCanvas();  // limpia trazos previos
+  status.innerHTML = `<b style="color:green;">✓ Conectado a ${device.productName} (área ${TABLET_W}×${TABLET_H}). Firma en la Wacom.</b>`;
+
+  device.addEventListener('inputreport', (event) => {
+    if (event.reportId !== 0x01) return;
+    const data = new Uint8Array(event.data.buffer);
+    const hex = Array.from(data).slice(0, 8).map(b => b.toString(16).padStart(2,'0')).join(' ');
+    log.textContent = `${hex}\n` + log.textContent.split('\n').slice(0, 5).join('\n');
+
+    if (data.length < 6) return;
+    const status_byte = data[0];
+    const x = (data[2] << 8) | data[3];
+    const y = (data[4] << 8) | data[5];
+    const touching = (status_byte & 0x80) !== 0;
+
+    if (touching && x > 0 && y > 0) {
+      const cx = (x / TABLET_W) * canvas.width;
+      const cy = (y / TABLET_H) * canvas.height;
+      if (lastX !== null) {
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(cx, cy);
+        ctx.stroke();
+      }
+      lastX = cx; lastY = cy;
+    } else {
+      lastX = null; lastY = null;
+    }
+  });
+};
+</script>
+</body>
+</html>

@@ -21,13 +21,13 @@
                           @fallback-required="onFingerprintFallback"
                           @reset="onChildReset" />
 
-    <WacomCaptureBox v-else-if="effectiveMethod === 'wacom_only_no_enrollment' || effectiveMethod === 'wacom_provisional'"
+    <WacomSTU430Capture v-else-if="effectiveMethod === 'wacom_only_no_enrollment' || effectiveMethod === 'wacom_provisional'"
                      :signer-name="signerName"
                      :provisional="true"
                      @signed="onWacomSigned"
                      @reset="onChildReset" />
 
-    <WacomCaptureBox v-else-if="effectiveMethod === 'wacom'"
+    <WacomSTU430Capture v-else-if="effectiveMethod === 'wacom'"
                      :signer-name="signerName"
                      :provisional="false"
                      @signed="onWacomSigned"
@@ -46,6 +46,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useSignatureMethod } from '../../composables/useSignatureMethod'
 import WacomCaptureBox from './WacomCaptureBox.vue'
+import WacomSTU430Capture from './WacomSTU430Capture.vue'
 import FingerprintVerifyBox from './FingerprintVerifyBox.vue'
 
 const props = defineProps({
