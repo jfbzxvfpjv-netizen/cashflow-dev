@@ -257,7 +257,7 @@ class SupplierService:
             p = f"%{search}%"
             query = query.filter(or_(Supplier.code.ilike(p), Supplier.name.ilike(p)))
         total = query.count()
-        items = _paginate(query.order_by(Supplier.name), page, page_size).all()
+        items = _paginate(query.order_by(Supplier.code), page, page_size).all()
         return items, total
 
     @staticmethod
@@ -269,9 +269,21 @@ class SupplierService:
 
     @staticmethod
     def create_supplier(db: Session, data, user_id: int):
-        if db.query(Supplier).filter(Supplier.code == data.code).first():
-            raise HTTPException(409, f"Ya existe proveedor con código '{data.code}'")
-        sup = Supplier(**_normalize_dump(data))
+        import re as _re
+        payload = _normalize_dump(data)
+        if not payload.get('code') or not str(payload['code']).strip():
+            max_n = 0
+            for (code,) in db.query(Supplier.code).filter(Supplier.code.like('PROV%')).all():
+                m = _re.match(r'^PROV(\d+)$', code or '')
+                if m:
+                    n = int(m.group(1))
+                    if n > max_n:
+                        max_n = n
+            next_n = max_n + 1
+            payload['code'] = f"PROV{next_n:02d}" if next_n < 100 else f"PROV{next_n}"
+        if db.query(Supplier).filter(Supplier.code == payload['code']).first():
+            raise HTTPException(409, f"Ya existe proveedor con codigo '{payload['code']}'")
+        sup = Supplier(**payload)
         db.add(sup)
         db.flush()
         _log_audit(db, user_id, None, "CREATE_SUPPLIER", "suppliers", sup.id)

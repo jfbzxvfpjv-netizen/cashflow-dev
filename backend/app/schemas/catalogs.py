@@ -133,7 +133,7 @@ class SubcategoryResponse(BaseModel):
 # ─────────────────────────────────────────────
 
 class SupplierCreate(BaseModel):
-    code: str = Field(..., min_length=1, max_length=30)
+    code: Optional[str] = Field(None, max_length=30)
     name: str = Field(..., min_length=1, max_length=150)
     supplier_type: str = Field(..., pattern=r'^(empresa|organismo|aerolinea|gasolinera|banco|otro)$')
     tax_id: Optional[str] = Field(None, max_length=50)
