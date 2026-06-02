@@ -109,10 +109,12 @@ class CategoryResponse(BaseModel):
 class SubcategoryCreate(BaseModel):
     category_id: int
     name: str = Field(..., min_length=1, max_length=100)
+    counterparty_type: Optional[str] = Field(None, pattern=r'^(employee|supplier|partner|external|any|none)$')
 
 class SubcategoryUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     active: Optional[bool] = None
+    counterparty_type: Optional[str] = Field(None, pattern=r'^(employee|supplier|partner|external|any|none)$')
 
 class SubcategoryResponse(BaseModel):
     id: int
@@ -120,6 +122,7 @@ class SubcategoryResponse(BaseModel):
     category_name: Optional[str] = None
     name: str
     active: bool
+    counterparty_type: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

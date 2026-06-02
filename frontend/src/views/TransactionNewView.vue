@@ -181,7 +181,16 @@ const selectedCategoryMeta = computed(() => {
   const cat = categories.value.find(c => c.id === form.value.category_id)
   return cat || null
 })
-const expectedCounterparty = computed(() => selectedCategoryMeta.value?.counterparty_type || null)
+const selectedSubcategoryMeta = computed(() => {
+  const sub = subcategories.value.find(s => s.id === form.value.subcategory_id)
+  return sub || null
+})
+// counterparty_type efectivo: subcategoria sobreescribe categoria si tiene valor
+const expectedCounterparty = computed(() => {
+  return selectedSubcategoryMeta.value?.counterparty_type
+      || selectedCategoryMeta.value?.counterparty_type
+      || null
+})
 const vehicleRequired = computed(() => !!selectedCategoryMeta.value?.requires_vehicle)
 const counterpartyHintMap = {
   employee: 'Esta categoría requiere seleccionar un empleado.',

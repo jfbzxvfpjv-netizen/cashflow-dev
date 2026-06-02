@@ -87,8 +87,12 @@ class TransactionService:
         if not subcat:
             raise ValueError("Subcategoría no encontrada o no pertenece a la categoría seleccionada")
 
-        # Validación de contraparte según counterparty_type de la categoría
-        ct = getattr(category, 'counterparty_type', 'external') or 'external'
+        # Validación de contraparte: subcategoría puede sobreescribir categoría
+        sub_ct = getattr(subcat, 'counterparty_type', None)
+        cat_ct = getattr(category, 'counterparty_type', 'external') or 'external'
+        ct = sub_ct or cat_ct
+        # Para mensajes de error, mostrar contexto correcto
+        ctx_name = f"{category.name}/{subcat.name}" if sub_ct else category.name
         emp_id = data.get('employee_id')
         sup_id = data.get('supplier_id')
         par_id = data.get('partner_id')
@@ -97,33 +101,33 @@ class TransactionService:
 
         if ct == 'employee':
             if not emp_id:
-                raise ValueError(f"La categoría '{category.name}' requiere seleccionar un empleado")
+                raise ValueError(f"La categoría '{ctx_name}' requiere seleccionar un empleado")
             if sup_id or par_id or cf:
-                raise ValueError(f"La categoría '{category.name}' solo admite empleado como contraparte")
+                raise ValueError(f"La categoría '{ctx_name}' solo admite empleado como contraparte")
         elif ct == 'supplier':
             if not sup_id:
-                raise ValueError(f"La categoría '{category.name}' requiere seleccionar un proveedor")
+                raise ValueError(f"La categoría '{ctx_name}' requiere seleccionar un proveedor")
             if emp_id or par_id or cf:
-                raise ValueError(f"La categoría '{category.name}' solo admite proveedor como contraparte")
+                raise ValueError(f"La categoría '{ctx_name}' solo admite proveedor como contraparte")
         elif ct == 'partner':
             if not par_id:
-                raise ValueError(f"La categoría '{category.name}' requiere seleccionar un socio")
+                raise ValueError(f"La categoría '{ctx_name}' requiere seleccionar un socio")
             if emp_id or sup_id or cf:
-                raise ValueError(f"La categoría '{category.name}' solo admite socio como contraparte")
+                raise ValueError(f"La categoría '{ctx_name}' solo admite socio como contraparte")
         elif ct == 'external':
             if not cf:
-                raise ValueError(f"La categoría '{category.name}' requiere identificar la contraparte (texto libre, sin vacío)")
+                raise ValueError(f"La categoría '{ctx_name}' requiere identificar la contraparte (texto libre, sin vacío)")
             if emp_id or sup_id or par_id:
-                raise ValueError(f"La categoría '{category.name}' solo admite contraparte de texto libre")
+                raise ValueError(f"La categoría '{ctx_name}' solo admite contraparte de texto libre")
         elif ct == 'any':
             if not (emp_id or sup_id or par_id or cf):
-                raise ValueError(f"La categoría '{category.name}' requiere una contraparte (catálogo o texto libre)")
+                raise ValueError(f"La categoría '{ctx_name}' requiere una contraparte (catálogo o texto libre)")
         elif ct == 'none':
             if emp_id or sup_id or par_id or cf:
-                raise ValueError(f"La categoría '{category.name}' es operación interna, no admite contraparte")
+                raise ValueError(f"La categoría '{ctx_name}' es operación interna, no admite contraparte")
 
         if getattr(category, 'requires_vehicle', False) and not veh_id:
-            raise ValueError(f"La categoría '{category.name}' requiere seleccionar un vehículo")
+            raise ValueError(f"La categoría '{ctx_name}' requiere seleccionar un vehículo")
 
 
         # 4. Validar proyectos y obras (al menos uno obligatorio)

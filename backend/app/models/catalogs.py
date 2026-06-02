@@ -69,6 +69,7 @@ class TransactionSubcategory(Base):
     category_id = Column(Integer, ForeignKey("transaction_categories.id"), nullable=False)
     name = Column(String(100), nullable=False)
     active = Column(Boolean, default=True)
+    counterparty_type = Column(String(20), nullable=True)  # override de la categoria
     created_at = Column(DateTime, server_default=func.now())
 
     category = relationship("TransactionCategory", back_populates="subcategories")
