@@ -19,3 +19,6 @@ FROM transaction_subcategories ts
 JOIN transaction_categories tc ON ts.category_id=tc.id
 WHERE tc.name='Transporte'
 ORDER BY ts.id;
+
+-- Sesion posterior 01/06/2026: Peajes tambien es reembolso a empleado
+UPDATE transaction_subcategories SET counterparty_type='employee' WHERE id=128 AND name='Peajes';
