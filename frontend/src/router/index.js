@@ -95,6 +95,12 @@ const routes = [
       component: () => import('@/views/admin/AdminFingerprintsView.vue'),
       meta: { requiresAuth: true, roles: ['admin'] }
     },
+    {
+      path: '/fingerprints/enroll',
+      name: 'fingerprint-enroll',
+      component: () => import('@/views/FingerprintEnrollView.vue'),
+      meta: { requiresAuth: true, roles: ['gestor'] }
+    },
     
       // M9: Módulos financieros especiales
   { path: '/advances-loans',       name: 'AdvancesLoans',        component: AdvancesLoansView,        meta: { requiresAuth: true } },
@@ -104,7 +110,7 @@ const routes = [
   { path: '/currency-ops',         name: 'CurrencyOps',          component: CurrencyView,             meta: { requiresAuth: true } },
   { path: '/partner-accounts',     name: 'PartnerAccounts',      component: PartnerAccountsView,      meta: { requiresAuth: true } },
   { path: '/reimbursable-expenses',name: 'ReimbursableExpenses', component: ReimbursableExpensesView, meta: { requiresAuth: true } },
-  { path: '/money-transfers',      name: 'MoneyTransfers',       component: MoneyTransfersView,       meta: { requiresAuth: true } },,
+  { path: '/money-transfers',      name: 'MoneyTransfers',       component: MoneyTransfersView,       meta: { requiresAuth: true } },
   {
     path: '/payrolls',
     name: 'Payrolls',

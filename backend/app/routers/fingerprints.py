@@ -33,12 +33,20 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 
+def require_admin_or_gestor(current_user: User = Depends(get_current_user)) -> User:
+    """Permite admin y gestor. Para el gestor, el filtrado/validacion por
+    delegacion se aplica en cada handler que expone empleados."""
+    if current_user.role not in ("admin", "gestor"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Requiere rol admin o gestor")
+    return current_user
+
+
 # ── Calidad / pre-check ─────────────────────────────────────────────────────
 
 @router.post("/quality", response_model=QualityResponse)
 def post_quality(
     payload: QualityRequest,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_admin_or_gestor),
 ):
     """Evalua calidad de una imagen sin persistir nada. Util durante enrolment."""
     try:
@@ -55,10 +63,16 @@ def post_quality(
 def post_enroll(
     payload: EnrollRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_admin_or_gestor),
 ):
     """Enrola las 4 capturas de un dedo de un empleado. Atomico: o todas o ninguna.
     Falla con 409 si el dedo ya esta enrolado (eliminar primero)."""
+    if current_user.role == "gestor":
+        emp = db.query(Employee).filter(Employee.id == payload.employee_id).first()
+        if not emp:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"Employee {payload.employee_id} no existe")
+        if emp.delegacion not in (current_user.delegacion, "Ambas"):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "El empleado no pertenece a tu delegacion")
     try:
         return fingerprint_service.enroll_employee_finger(
             db=db,
@@ -171,10 +185,14 @@ def delete_employee_finger(
 @router.get("/employees", response_model=List[EmployeeWithEnrollment])
 def list_employees_with_enrollment(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_admin_or_gestor),
 ):
-    """Lista todos los employees activos con su estado de enrolment."""
-    employees = db.query(Employee).filter(Employee.active == True).order_by(Employee.full_name).all()
+    """Lista employees activos con su estado de enrolment.
+    El gestor solo ve los de su delegacion (mas 'Ambas')."""
+    q = db.query(Employee).filter(Employee.active == True)
+    if current_user.role == "gestor":
+        q = q.filter(Employee.delegacion.in_([current_user.delegacion, "Ambas"]))
+    employees = q.order_by(Employee.full_name).all()
     result = []
     for emp in employees:
         fps = db.query(EmployeeFingerprint).filter(
@@ -195,7 +213,7 @@ def list_employees_with_enrollment(
 # ── Engine status ──────────────────────────────────────────────────────────
 
 @router.get("/engine/status", response_model=EnginStatusResponse)
-def get_engine_status(current_user: User = Depends(require_admin)):
+def get_engine_status(current_user: User = Depends(require_admin_or_gestor)):
     """Healthcheck del microservicio Java SourceAFIS."""
     engine = get_engine()
     try:

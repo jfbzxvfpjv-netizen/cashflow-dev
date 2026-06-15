@@ -71,6 +71,7 @@ const menu = [
   { to:'/corporate-accounts', label:'Cuentas Bancarias', icon:'🏦', roles:['admin'] },
   { to:'/vehicles', label:'Vehículos', icon:'🚗', roles:['admin'] },
   { sep:'Operaciones', to:'/sessions', label:'Sesiones de Caja', icon:'💰', roles:['gestor','admin'] },
+  { to:'/fingerprints/enroll', label:'Enrolar Huellas', icon:'👆', roles:['gestor'] },
   { to:'/bank-withdrawals', label:'Retiradas Bancarias', icon:'🏧', roles:['contable','admin','gestor'] },
   { to:'/config', label:'Configuración Caja', icon:'⚙️', roles:['admin'] },
     { to:'/import', label:'Importar Excel', icon:'📥', roles:['admin'] },
