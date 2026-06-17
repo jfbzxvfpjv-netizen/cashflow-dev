@@ -139,7 +139,7 @@ class FloatCreate(BaseModel):
     # Categoría fija: Circulantes/Apertura_Circulante (resuelta en service).
     project_id: int
     work_id: int
-
+    signature: dict  # M11 firma obligatoria del receptor
 
 class FloatJustify(BaseModel):
     # M9 Fase 1 Parte D — el service crea dos transacciones (egreso real +

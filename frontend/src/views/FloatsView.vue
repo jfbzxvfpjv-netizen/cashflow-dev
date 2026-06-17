@@ -106,6 +106,14 @@
           </div>
         </div>
 
+        <div class="border-t pt-3 mb-3">
+          <label class="block mb-2 text-sm font-medium">Firma del receptor <span class="text-red-600">*</span></label>
+          <p v-if="!form.employee_id" class="text-xs text-gray-500">Selecciona el empleado para capturar su firma.</p>
+          <SignatureSection v-else
+                            contraparte-type="employee"
+                            :contraparte-id="form.employee_id"
+                            @signature-ready="onSignatureReady" />
+        </div>
         <div class="flex justify-end gap-2">
           <button @click="showCreate = false" class="px-4 py-2 border rounded">Cancelar</button>
           <button @click="submitCreate" class="px-4 py-2 bg-blue-600 text-white rounded" :disabled="!canSubmitCreate">
@@ -258,6 +266,7 @@ const tooltipNoPermiso = 'Solo los gestores pueden crear movimientos de caja'
 
 import { floatsService } from '../services/financialModulesService'
 import api from '../services/api'
+import SignatureSection from '@/components/admin/SignatureSection.vue'
 
 function extractArray(d) {
   if (Array.isArray(d)) return d
@@ -302,6 +311,11 @@ const form         = ref(emptyCreateForm())
 const justifyForm  = ref(emptyJustifyForm())
 const closeForm    = ref(emptyCloseForm())
 
+// M11: firma obligatoria del receptor en apertura de circulante
+const signaturePayload = ref(null)
+const stripDataUrl = (v) => (v || '').replace(/^data:image\/\w+;base64,/, '')
+const onSignatureReady = (payload) => { signaturePayload.value = payload }
+
 // Formato y estilo
 const fmt = (v) => v == null ? '—' : Number(v).toLocaleString('es-ES', { maximumFractionDigits: 0 })
 const statusClass = (s) => ({
@@ -313,7 +327,7 @@ const statusClass = (s) => ({
 // Validaciones
 const canSubmitCreate = computed(() => {
   const f = form.value
-  return f.employee_id && f.amount_given > 0 && f.project_id && f.work_id
+  return f.employee_id && f.amount_given > 0 && f.project_id && f.work_id && !!signaturePayload.value
 })
 const canSubmitJustify = computed(() => {
   const f = justifyForm.value
@@ -371,6 +385,7 @@ const loadWorksClose = async () => {
 const openCreate = () => {
   form.value = emptyCreateForm()
   worksForm.value = []
+  signaturePayload.value = null
   showCreate.value = true
 }
 const openJustify = (it) => {
@@ -390,7 +405,23 @@ const openClose = (it) => {
 // Submits
 const submitCreate = async () => {
   try {
-    await floatsService.create(form.value)
+    const sp = signaturePayload.value
+    const signature = {
+      signer_type: 'employee',
+      signer_name: sp.signer_name,
+      signature_method: sp.signature_method,
+      employee_id: sp.employee_id ?? form.value.employee_id,
+    }
+    if (sp.signature_method === 'fingerprint') {
+      signature.fingerprint_score = Math.round(Number(sp.fingerprint_score) || 0)
+      signature.fingerprint_finger_position = sp.fingerprint_finger_position
+      signature.fingerprint_attempts = sp.fingerprint_attempts
+    } else {
+      signature.signature_data = stripDataUrl(sp.wacom_image_b64)
+      signature.fingerprint_failed_scores = sp.fingerprint_failed_scores
+    }
+    await floatsService.create({ ...form.value, signature })
+    signaturePayload.value = null
     showCreate.value = false
     await load()
   } catch (e) {

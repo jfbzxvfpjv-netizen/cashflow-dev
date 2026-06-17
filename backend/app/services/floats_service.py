@@ -27,6 +27,7 @@ from decimal import Decimal
 from datetime import datetime
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from app.services.signature_persistence import persist_inline_signature
 
 from app.models import catalogs as m
 from app.services.financial_helpers import get_active_session, create_transaction
@@ -164,6 +165,18 @@ def create(db: Session, data, user, delegacion: str):
         project_id=data.project_id,
         work_id=data.work_id,
     )
+
+    # M11 - firma obligatoria del receptor, colgada de la transaccion de apertura
+    _sig = data.signature
+    if (not _sig or _sig.get("signer_type") != "employee"
+            or int(_sig.get("employee_id") or 0) != data.employee_id):
+        db.rollback()
+        raise HTTPException(status_code=422, detail="Se requiere la firma del empleado receptor del circulante")
+    try:
+        persist_inline_signature(db, tx, _sig, user.id)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(e))
 
     # Insertar el circulante
     item = m.Float(
