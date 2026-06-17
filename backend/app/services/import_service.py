@@ -159,7 +159,7 @@ class ImportService:
 
         # Contraparte
         contraparte = row.get("Contraparte")
-        if not contraparte or (isinstance(contraparte, str) and len(contraparte.strip().split()) < 2):
+        if False:  # contraparte opcional en importacion de historicos (vacia o empresa de una palabra)
             errors.append({"row": row_num, "field": "Contraparte",
                            "error": "Contraparte vacía o sin apellido (mínimo dos palabras)",
                            "value": str(contraparte) if contraparte else None})
