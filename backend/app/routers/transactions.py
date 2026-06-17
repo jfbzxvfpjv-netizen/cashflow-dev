@@ -95,7 +95,17 @@ def _enrich_transaction(db: Session, txn: Transaction) -> dict:
     if counterparty_name is None and txn.counterparty_free:
         counterparty_name = txn.counterparty_free
 
+    manager_name = None
+    if txn.manager_employee_id:
+        from app.models.catalogs import Employee
+        memp = db.query(Employee).filter(Employee.id == txn.manager_employee_id).first()
+        if memp:
+            manager_name = memp.full_name
+    if manager_name is None and txn.manager_free:
+        manager_name = txn.manager_free
+
     return {
+        "manager_name": manager_name,
         "category_name": cat.name if cat else None,
         "subcategory_name": subcat.name if subcat else None,
         "user_fullname": user.full_name if user else None,
@@ -172,6 +182,8 @@ async def list_transactions(
     employee_id: Optional[int] = None,
     partner_id: Optional[int] = None,
     vehicle_id: Optional[int] = None,
+    manager_employee_id: Optional[int] = None,
+    manager_free: Optional[str] = None,
     transaction_type: Optional[str] = None,
     approval_status: Optional[str] = None,
     imported: Optional[bool] = None,
@@ -194,6 +206,7 @@ async def list_transactions(
         "project_id": project_id, "work_id": work_id,
         "supplier_id": supplier_id, "employee_id": employee_id,
         "partner_id": partner_id, "vehicle_id": vehicle_id,
+        "manager_employee_id": manager_employee_id, "manager_free": manager_free,
         "transaction_type": transaction_type, "approval_status": approval_status,
         "imported": imported, "cancelled": cancelled,
         "concept": concept, "min_amount": min_amount, "max_amount": max_amount,

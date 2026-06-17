@@ -146,6 +146,7 @@
           <div><span class="text-gray-500">Categoría:</span> {{ txn.category_name }}</div>
           <div><span class="text-gray-500">Subcategoría:</span> {{ txn.subcategory_name }}</div>
           <div><span class="text-gray-500">Contraparte:</span> {{ txn.counterparty_name || '—' }}</div>
+          <div><span class="text-gray-500">Gestionado por:</span> {{ txn.manager_name || '—' }}</div>
           <div><span class="text-gray-500">Registrado por:</span> {{ txn.user_fullname }}</div>
           <div><span class="text-gray-500">Fecha:</span> {{ formatDate(txn.created_at) }}</div>
         </div>
@@ -298,7 +299,7 @@ const isFormValid = computed(() => {
   if (!f.concept || f.concept.trim().length < 3) return false
   if (!f.edit_reason || f.edit_reason.trim().length < 3) return false
   if (f.counterparty_kind === 'free') {
-    if (!f.counterparty_free || f.counterparty_free.trim().split(/\s+/).length < 2) return false
+    if (!f.counterparty_free || f.counterparty_free.trim().length < 2) return false
   } else if (f.counterparty_kind === 'supplier' && !f.supplier_id) {
     return false
   } else if (f.counterparty_kind === 'employee' && !f.employee_id) {

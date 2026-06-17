@@ -55,8 +55,11 @@
           <option value="rejected">Rechazadas</option>
         </select>
         <input v-model="filters.concept" type="text" class="border rounded px-2 py-1" placeholder="Buscar concepto..." />
-        <div></div>
-        <div></div>
+        <select v-model="filters.manager_employee_id" class="border rounded px-2 py-1">
+          <option value="">Gestor: todos</option>
+          <option v-for="e in employees" :key="'m'+e.id" :value="e.id">{{ e.full_name }}</option>
+        </select>
+        <input v-model="filters.manager_free" type="text" class="border rounded px-2 py-1" placeholder="Gestor (texto)..." />
         <button @click="resetFilters" class="bg-gray-100 hover:bg-gray-200 border rounded px-3 py-1 text-gray-500">Limpiar</button>
         <button @click="loadTransactions" class="bg-gray-200 hover:bg-gray-300 rounded px-3 py-1 font-medium">Filtrar</button>
       </div>
@@ -148,6 +151,7 @@ const totalPages = ref(1)
 const filters = ref({
   delegacion: '', date_start: '', date_end: '', type: '', approval_status: '', concept: '',
   category_id: '', subcategory_id: '', supplier_id: '', employee_id: '',
+  manager_employee_id: '', manager_free: '',
   signature_method: ''
 })
 
@@ -197,7 +201,7 @@ function onCounterpartyChange() {
 function resetFilters() {
   filters.value = {
     delegacion: '', date_start: '', date_end: '', type: '', approval_status: '', concept: '',
-    category_id: '', subcategory_id: '', supplier_id: '', employee_id: ''
+    category_id: '', subcategory_id: '', supplier_id: '', employee_id: '', manager_employee_id: '', manager_free: ''
   }
   counterpartyFilter.value = ''
   subcategories.value = []

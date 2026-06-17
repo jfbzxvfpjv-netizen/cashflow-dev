@@ -90,6 +90,18 @@
         <p v-if="counterpartyHint" class="text-xs text-gray-600 mb-1 italic">{{ counterpartyHint }}</p>
         <CounterpartySelector @update="onCounterpartyChange" />
       </div>
+      <!-- Gestor de compra (solo si hay proveedor) -->
+      <div v-if="contraparteType === 'supplier'">
+        <label class="block text-sm font-medium mb-1">Gestionado por (R2i)</label>
+        <p class="text-xs text-gray-500 mb-1 italic">Quien realizo la gestion de compra por nuestra parte. Empleado del catalogo o codigo/texto libre.</p>
+        <select v-model="form.manager_employee_id" class="w-full border rounded px-3 py-2 mb-2">
+          <option :value="null">Empleado (ninguno)</option>
+          <option v-for="e in employees" :key="e.id" :value="e.id">{{ e.full_name }}</option>
+        </select>
+        <input v-model="form.manager_free" type="text" placeholder="o codigo/texto libre, p. ej. COM-001"
+          :disabled="!!form.manager_employee_id"
+          class="w-full border rounded px-3 py-2 disabled:bg-gray-100" />
+      </div>
 
       <!-- Vehículo (opcional) -->
       <div>
@@ -159,12 +171,14 @@ const form = ref({
   category_id: null, subcategory_id: null,
   projects: [{ project_id: null, work_id: null }],
   supplier_id: null, employee_id: null, partner_id: null,
-  counterparty_free: null, vehicle_id: null
+  counterparty_free: null, vehicle_id: null,
+  manager_employee_id: null, manager_free: null
 })
 
 const categories = ref([])
 const subcategories = ref([])
 const vehicles = ref([])
+const employees = ref([])
 const error = ref('')
 const success = ref('')
 const submitting = ref(false)
@@ -324,6 +338,10 @@ async function loadVehicles() {
   const { data } = await api.get('/vehicles')
   vehicles.value = Array.isArray(data) ? data : (data.items || [])
 }
+async function loadEmployees() {
+  const { data } = await api.get('/employees')
+  employees.value = Array.isArray(data) ? data : (data.items || [])
+}
 
 function onCounterpartyChange(cp) {
   form.value.supplier_id = cp.supplier_id
@@ -418,6 +436,8 @@ async function submit() {
       signature.fingerprint_failed_scores = signaturePayload.value.fingerprint_failed_scores
     }
 
+    if (contraparteType.value !== 'supplier') { form.value.manager_employee_id = null; form.value.manager_free = null }
+    if (form.value.manager_employee_id) form.value.manager_free = null
     const body = { ...form.value, signature }
       const { data } = await transactionService.create(body)
       router.push('/transactions/' + data.id)
@@ -426,7 +446,8 @@ async function submit() {
       category_id: null, subcategory_id: null,
       projects: [{ project_id: null, work_id: null }],
       supplier_id: null, employee_id: null, partner_id: null,
-      counterparty_free: null, vehicle_id: null
+      counterparty_free: null, vehicle_id: null,
+      manager_employee_id: null, manager_free: null
     }
     subcategories.value = []
     signaturePayload.value = null
@@ -439,5 +460,5 @@ async function submit() {
   }
 }
 
-onMounted(() => { loadCategories(); loadVehicles(); loadThresholds() })
+onMounted(() => { loadCategories(); loadVehicles(); loadThresholds(); loadEmployees() })
 </script>

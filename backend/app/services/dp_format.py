@@ -91,6 +91,18 @@ def try_convert_dp_to_png(image_b64: str) -> Optional[bytes]:
         logger.warning(f"DP-Raw Data interno no decodificable: {e}")
         return None
 
+    # Si el Data ya es una imagen codificada (p.ej. SampleFormat.PngImage),
+    # devolverla tal cual; no reinterpretar como raster.
+    if bitmap_bytes[:8] == b'\x89PNG\r\n\x1a\n' or bitmap_bytes[:2] == b'\xff\xd8':
+        logger.info('DP envelope contiene imagen PNG/JPEG ya formada; devuelta sin reinterpretar')
+        return bitmap_bytes
+
+    # Si el Data ya es una imagen codificada (p.ej. SampleFormat.PngImage),
+    # devolverla tal cual; no reinterpretar como raster.
+    if bitmap_bytes[:8] == b'\x89PNG\r\n\x1a\n' or bitmap_bytes[:2] == b'\xff\xd8':
+        logger.info('DP envelope contiene imagen PNG/JPEG ya formada; devuelta sin reinterpretar')
+        return bitmap_bytes
+
     bitmap_size = len(bitmap_bytes)
 
     # Auto-deteccion: si el tamano coincide con una combinacion conocida, usarla

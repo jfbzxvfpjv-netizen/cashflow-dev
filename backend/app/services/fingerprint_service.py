@@ -34,6 +34,13 @@ def _safe_b64decode(s: str, label: str = "image_b64") -> bytes:
     Si no es DP, sigue como base64 estandar (PNG ya proporcionado, dummy
     de test, etc).
     """
+    # INSTRUMENTACION volcado muestra cruda (revertir tras diagnostico)
+    try:
+        import time as _t
+        with open(f'/tmp/dpcap_{label}_{int(_t.time()*1000)}.b64', 'w') as _f:
+            _f.write(s)
+    except Exception:
+        pass
     # Intentar conversion DP -> PNG si el contenido es envelope DigitalPersona
     try:
         png_bytes = dp_format.try_convert_dp_to_png(s)

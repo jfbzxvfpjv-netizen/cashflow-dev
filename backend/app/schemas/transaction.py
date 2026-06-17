@@ -56,13 +56,15 @@ class TransactionCreate(BaseModel):
     vehicle_id: Optional[int] = None
     transaction_type: str = "normal"
     notes: Optional[str] = None
+    manager_employee_id: Optional[int] = None
+    manager_free: Optional[str] = None
     signature: Optional[SignatureCreateInline] = None
 
     @field_validator("counterparty_free")
     @classmethod
     def validate_counterparty(cls, v):
-        if v is not None and len(v.strip().split()) < 2:
-            raise ValueError("La contraparte libre debe tener al menos nombre y apellido")
+        if v is not None and len(v.strip()) < 2:
+            raise ValueError("La contraparte libre no puede estar vacia")
         return v
 
 
@@ -79,6 +81,8 @@ class TransactionUpdate(BaseModel):
     partner_id: Optional[int] = None
     counterparty_free: Optional[str] = None
     vehicle_id: Optional[int] = None
+    manager_employee_id: Optional[int] = None
+    manager_free: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -111,6 +115,9 @@ class TransactionOut(BaseModel):
     counterparty_free: Optional[str] = None
     counterparty_name: Optional[str] = None
     vehicle_id: Optional[int] = None
+    manager_employee_id: Optional[int] = None
+    manager_free: Optional[str] = None
+    manager_name: Optional[str] = None
     type: str
     amount: Decimal
     concept: str

@@ -201,6 +201,8 @@ class TransactionService:
             partner_id=data.get("partner_id"),
             counterparty_free=data.get("counterparty_free"),
             vehicle_id=data.get("vehicle_id"),
+            manager_employee_id=data.get("manager_employee_id"),
+            manager_free=data.get("manager_free"),
             type=data["type"],
             amount=data["amount"],
             concept=data["concept"],
@@ -388,7 +390,7 @@ class TransactionService:
         updatable_fields = [
             "category_id", "subcategory_id", "type", "amount", "concept",
             "supplier_id", "employee_id", "partner_id", "counterparty_free",
-            "vehicle_id"
+            "vehicle_id", "manager_employee_id", "manager_free"
         ]
         for field in updatable_fields:
             if field in data and data[field] is not None:
@@ -580,12 +582,16 @@ class TransactionService:
             "employee_id": Transaction.employee_id,
             "partner_id": Transaction.partner_id,
             "vehicle_id": Transaction.vehicle_id,
+            "manager_employee_id": Transaction.manager_employee_id,
             "transaction_type": Transaction.transaction_type,
             "approval_status": Transaction.approval_status,
         }
         for key, col in filter_map.items():
             if filters.get(key):
                 query = query.filter(col == filters[key])
+
+        if filters.get("manager_free"):
+            query = query.filter(Transaction.manager_free.ilike(f"%{filters['manager_free']}%"))
 
         if filters.get("imported") is not None:
             query = query.filter(Transaction.imported == filters["imported"])

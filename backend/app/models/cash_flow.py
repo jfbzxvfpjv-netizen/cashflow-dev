@@ -142,6 +142,8 @@ class Transaction(Base):
     partner_id = Column(Integer, ForeignKey("partners.id"), nullable=True)
     counterparty_free = Column(String(150), nullable=True)
     vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=True)
+    manager_employee_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+    manager_free = Column(String(150), nullable=True)
     type = Column(String(10), nullable=False)
     amount = Column(Numeric(12, 2), nullable=False)
     concept = Column(Text, nullable=False)
