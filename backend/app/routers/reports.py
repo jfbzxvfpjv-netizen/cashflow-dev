@@ -143,3 +143,40 @@ async def transaction_receipt(
         headers={"Content-Disposition": f'inline; filename="recibo_txn_{txn_id}.{ext}"'}
     )
 
+
+
+@router.get("/by-subcategory")
+async def report_by_subcategory(
+    date_start: date = Query(..., description="Fecha inicio"),
+    date_end: date = Query(..., description="Fecha fin"),
+    delegacion: Optional[str] = Query(None),
+    subcategory_id: Optional[int] = Query(None),
+    format: str = Query("pdf", description="pdf o xlsx"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Informe por subcategoria. Sin subcategory_id: resumen agregado.
+    Con subcategory_id: detalle de movimientos de esa subcategoria."""
+    if current_user.role == 'gestor':
+        delegacion = current_user.delegacion
+    if format == 'xlsx':
+        content = ReportService.generate_subcategory_xlsx(
+            db, delegacion, date_start, date_end, subcategory_id
+        )
+        return Response(
+            content=content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename=informe_subcategoria_{date_start}_{date_end}.xlsx"}
+        )
+    content = ReportService.generate_subcategory_pdf(
+        db, delegacion, date_start, date_end, subcategory_id
+    )
+    if content[:5] == b'%PDF-':
+        media = "application/pdf"; ext = "pdf"
+    else:
+        media = "text/html"; ext = "html"
+    return Response(
+        content=content,
+        media_type=media,
+        headers={"Content-Disposition": f"attachment; filename=informe_subcategoria_{date_start}_{date_end}.{ext}"}
+    )

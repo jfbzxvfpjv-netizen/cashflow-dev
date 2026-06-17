@@ -35,7 +35,7 @@
     </div>
 
     <!-- Informe de período libre -->
-    <div class="bg-white rounded-xl shadow p-6">
+    <div class="bg-white rounded-xl shadow p-6 mb-6">
       <h2 class="text-lg font-semibold text-gray-700 mb-4">Informe de período</h2>
       <p class="text-sm text-gray-500 mb-4">
         Define un rango de fechas y, opcionalmente, filtra por delegación y categoría
@@ -82,6 +82,63 @@
       </div>
     </div>
 
+    <!-- Informe por subcategoría -->
+    <div class="bg-white rounded-xl shadow p-6">
+      <h2 class="text-lg font-semibold text-gray-700 mb-4">Informe por subcategoría</h2>
+      <p class="text-sm text-gray-500 mb-4">
+        Sin seleccionar subcategoría obtienes un <strong>resumen</strong> con el total de cada
+        subcategoría en el período. Si eliges una categoría y luego una subcategoría, obtienes el
+        <strong>detalle</strong> de sus movimientos.
+      </p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Fecha inicio</label>
+          <input type="date" v-model="subcatStart"
+            class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Fecha fin</label>
+          <input type="date" v-model="subcatEnd"
+            class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Delegación (opcional)</label>
+          <select v-model="subcatDelegacion"
+            class="w-full border rounded-lg px-3 py-2 text-sm">
+            <option value="">Todas</option>
+            <option value="Bata">Bata</option>
+            <option value="Malabo">Malabo</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Categoría (opcional, para elegir subcategoría)</label>
+          <select v-model="subcatCategory" @change="onSubcatCategoryChange"
+            class="w-full border rounded-lg px-3 py-2 text-sm">
+            <option value="">— Sin filtrar (resumen de todas) —</option>
+            <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+          </select>
+        </div>
+        <div class="sm:col-span-2">
+          <label class="block text-xs text-gray-500 mb-1">Subcategoría (opcional → detalle)</label>
+          <select v-model="subcatId" :disabled="!subcategories.length"
+            class="w-full border rounded-lg px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-400">
+            <option value="">{{ subcatCategory ? 'Todas de esta categoría (resumen)' : 'Elige una categoría primero' }}</option>
+            <option v-for="s in subcategories" :key="s.id" :value="s.id">{{ s.name }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button @click="downloadSubcategory('pdf')" :disabled="!subcatStart || !subcatEnd"
+          class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition">
+          📄 PDF
+        </button>
+        <button @click="downloadSubcategory('xlsx')" :disabled="!subcatStart || !subcatEnd"
+          class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition">
+          📥 Excel
+        </button>
+      </div>
+    </div>
+
     <!-- Feedback de descarga -->
     <div v-if="downloading" class="fixed bottom-6 right-6 bg-blue-600 text-white px-5 py-3 rounded-xl shadow-lg text-sm flex items-center gap-2">
       <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
@@ -111,6 +168,14 @@ const periodCategory = ref('')
 const downloading = ref(false)
 const error = ref('')
 
+// Informe por subcategoría
+const subcatStart = ref('')
+const subcatEnd = ref('')
+const subcatDelegacion = ref('')
+const subcatCategory = ref('')
+const subcatId = ref('')
+const subcategories = ref([])
+
 function formatFecha(iso) {
   if (!iso) return ''
   return new Date(iso).toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' })
@@ -128,9 +193,21 @@ async function loadSessions() {
 async function loadCategories() {
   try {
     const res = await api.get('/categories')
-    categories.value = res.data || []
+    categories.value = res.data.items || res.data || []
   } catch (e) {
     console.error('Error cargando categorías:', e)
+  }
+}
+
+async function onSubcatCategoryChange() {
+  subcatId.value = ''
+  subcategories.value = []
+  if (!subcatCategory.value) return
+  try {
+    const res = await api.get('/subcategories', { params: { category_id: subcatCategory.value } })
+    subcategories.value = res.data || []
+  } catch (e) {
+    console.error('Error cargando subcategorías:', e)
   }
 }
 
@@ -163,6 +240,27 @@ async function downloadPeriod(format) {
     await reportService.downloadPeriodReport(params)
   } catch (e) {
     error.value = 'Error al generar el informe de período'
+    setTimeout(() => error.value = '', 4000)
+  } finally {
+    downloading.value = false
+  }
+}
+
+async function downloadSubcategory(format) {
+  if (!subcatStart.value || !subcatEnd.value) return
+  downloading.value = true
+  error.value = ''
+  try {
+    const params = {
+      date_start: subcatStart.value,
+      date_end: subcatEnd.value,
+      format
+    }
+    if (subcatDelegacion.value) params.delegacion = subcatDelegacion.value
+    if (subcatId.value) params.subcategory_id = subcatId.value
+    await reportService.downloadSubcategoryReport(params)
+  } catch (e) {
+    error.value = 'Error al generar el informe por subcategoría'
     setTimeout(() => error.value = '', 4000)
   } finally {
     downloading.value = false

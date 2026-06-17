@@ -121,6 +121,313 @@ class ReportService:
         }
 
     @classmethod
+    def get_subcategory_data(
+        cls, db: Session,
+        delegacion: Optional[str],
+        date_start: date,
+        date_end: date,
+        subcategory_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """Datos del informe por subcategoria.
+        Sin subcategory_id -> resumen agrupado por subcategoria.
+        Con subcategory_id -> detalle de movimientos de esa subcategoria."""
+        from app.models import TransactionSubcategory
+        query = db.query(Transaction).filter(
+            cast(Transaction.created_at, Date) >= date_start,
+            cast(Transaction.created_at, Date) <= date_end
+        )
+        if delegacion and delegacion != 'Consolidado':
+            query = query.filter(Transaction.delegacion == delegacion)
+        if subcategory_id:
+            query = query.filter(Transaction.subcategory_id == subcategory_id)
+        transactions = query.order_by(Transaction.created_at).all()
+        periodo = {
+            "date_start": date_start.strftime("%d/%m/%Y"),
+            "date_end": date_end.strftime("%d/%m/%Y"),
+            "delegacion": delegacion or "Todas",
+        }
+        if subcategory_id:
+            sub = db.query(TransactionSubcategory).filter(
+                TransactionSubcategory.id == subcategory_id).first()
+            cat = None
+            if sub:
+                cat = db.query(TransactionCategory).filter(
+                    TransactionCategory.id == sub.category_id).first()
+            items = []
+            total_ingresos = Decimal('0')
+            total_egresos = Decimal('0')
+            for t in transactions:
+                contraparte = cls._get_contraparte(db, t)
+                estado = 'Aprobada'
+                if t.cancelled:
+                    estado = 'Anulada'
+                elif t.approval_status == 'pending_approval':
+                    estado = 'Pendiente'
+                elif t.approval_status == 'authorized':
+                    estado = 'Autorizada'
+                elif t.approval_status == 'rejected':
+                    estado = 'Rechazada'
+                if not t.cancelled and t.approval_status == 'approved':
+                    if t.type == 'income':
+                        total_ingresos += t.amount
+                    else:
+                        total_egresos += t.amount
+                items.append({
+                    "fecha": t.created_at.strftime("%d/%m/%Y %H:%M") if t.created_at else '',
+                    "referencia": t.reference_number or '',
+                    "concepto": t.concept or '',
+                    "contraparte": contraparte,
+                    "tipo": t.type,
+                    "importe": float(t.amount),
+                    "estado": estado,
+                    "delegacion": t.delegacion,
+                    "cancelled": t.cancelled,
+                })
+            return {
+                "modo": "detalle",
+                "periodo": periodo,
+                "subcategoria": sub.name if sub else str(subcategory_id),
+                "categoria": cat.name if cat else '',
+                "transactions": items,
+                "total_ingresos": float(total_ingresos),
+                "total_egresos": float(total_egresos),
+                "saldo_neto": float(total_ingresos - total_egresos),
+            }
+        grupos = {}
+        for t in transactions:
+            if t.cancelled or t.approval_status != 'approved':
+                continue
+            sid = t.subcategory_id
+            if sid not in grupos:
+                sub = db.query(TransactionSubcategory).filter(
+                    TransactionSubcategory.id == sid).first() if sid else None
+                cat = None
+                if sub:
+                    cat = db.query(TransactionCategory).filter(
+                        TransactionCategory.id == sub.category_id).first()
+                grupos[sid] = {
+                    "subcategoria": sub.name if sub else 'Sin subcategoria',
+                    "categoria": cat.name if cat else '',
+                    "num": 0,
+                    "ingresos": Decimal('0'),
+                    "egresos": Decimal('0'),
+                }
+            g = grupos[sid]
+            g["num"] += 1
+            if t.type == 'income':
+                g["ingresos"] += t.amount
+            else:
+                g["egresos"] += t.amount
+        rows = []
+        for g in grupos.values():
+            rows.append({
+                "subcategoria": g["subcategoria"],
+                "categoria": g["categoria"],
+                "num": g["num"],
+                "ingresos": float(g["ingresos"]),
+                "egresos": float(g["egresos"]),
+                "neto": float(g["ingresos"] - g["egresos"]),
+            })
+        rows.sort(key=lambda r: r["egresos"], reverse=True)
+        return {
+            "modo": "resumen",
+            "periodo": periodo,
+            "rows": rows,
+            "total_ingresos": float(sum(Decimal(str(r["ingresos"])) for r in rows)),
+            "total_egresos": float(sum(Decimal(str(r["egresos"])) for r in rows)),
+        }
+
+    @classmethod
+    def generate_subcategory_pdf(
+        cls, db: Session,
+        delegacion: Optional[str],
+        date_start: date,
+        date_end: date,
+        subcategory_id: Optional[int] = None
+    ) -> bytes:
+        """Informe por subcategoria en PDF (resumen o detalle)."""
+        data = cls.get_subcategory_data(db, delegacion, date_start, date_end, subcategory_id)
+        p = data["periodo"]
+        if data["modo"] == "detalle":
+            titulo = "Detalle por Subcategoria"
+            subtitulo = f"{data['categoria']} / {data['subcategoria']}"
+            rows_html = ""
+            for t in data["transactions"]:
+                color = "#16a34a" if t["tipo"] == "income" else "#dc2626"
+                if t["cancelled"]:
+                    color = "#9ca3af"
+                signo = "+" if t["tipo"] == "income" else "-"
+                rows_html += f"""
+                <tr style="{'text-decoration:line-through;color:#9ca3af;' if t['cancelled'] else ''}">
+                    <td>{t['fecha']}</td>
+                    <td>{t['referencia']}</td>
+                    <td>{t['concepto'][:60]}</td>
+                    <td>{t['contraparte'][:30]}</td>
+                    <td style="color:{color};text-align:right;font-weight:600;">{signo} {cls._format_amount(t['importe'])} XAF</td>
+                    <td>{t['delegacion']}</td>
+                    <td>{t['estado']}</td>
+                </tr>"""
+            tabla = f"""
+            <table>
+                <thead><tr>
+                    <th>Fecha/Hora</th><th>Ref.</th><th>Concepto</th><th>Contraparte</th>
+                    <th style="text-align:right">Importe</th><th>Deleg.</th><th>Estado</th>
+                </tr></thead>
+                <tbody>{rows_html}</tbody>
+            </table>
+            <div class="totals">
+                <div style="color:#16a34a;">Total ingresos: <strong>{cls._format_amount(data['total_ingresos'])} XAF</strong></div>
+                <div style="color:#dc2626;">Total egresos: <strong>{cls._format_amount(data['total_egresos'])} XAF</strong></div>
+                <div style="color:#1e40af;font-size:13px;">Saldo neto: <strong>{cls._format_amount(data['saldo_neto'])} XAF</strong></div>
+            </div>"""
+        else:
+            titulo = "Resumen por Subcategoria"
+            subtitulo = f"{len(data['rows'])} subcategorias con movimiento"
+            rows_html = ""
+            for r in data["rows"]:
+                rows_html += f"""
+                <tr>
+                    <td>{r['subcategoria']}</td>
+                    <td>{r['categoria']}</td>
+                    <td style="text-align:center">{r['num']}</td>
+                    <td style="text-align:right;color:#16a34a;">{cls._format_amount(r['ingresos'])}</td>
+                    <td style="text-align:right;color:#dc2626;">{cls._format_amount(r['egresos'])}</td>
+                    <td style="text-align:right;font-weight:600;">{cls._format_amount(r['neto'])}</td>
+                </tr>"""
+            tabla = f"""
+            <table>
+                <thead><tr>
+                    <th>Subcategoria</th><th>Categoria</th><th style="text-align:center">N mov.</th>
+                    <th style="text-align:right">Ingresos</th><th style="text-align:right">Egresos</th>
+                    <th style="text-align:right">Neto</th>
+                </tr></thead>
+                <tbody>{rows_html}</tbody>
+            </table>
+            <div class="totals">
+                <div style="color:#16a34a;">Total ingresos: <strong>{cls._format_amount(data['total_ingresos'])} XAF</strong></div>
+                <div style="color:#dc2626;">Total egresos: <strong>{cls._format_amount(data['total_egresos'])} XAF</strong></div>
+            </div>"""
+        html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+    @page {{ size: A4 landscape; margin: 15mm; }}
+    body {{ font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #1e293b; }}
+    h1 {{ font-size: 16px; color: #1e40af; margin-bottom: 5px; }}
+    h2 {{ font-size: 12px; color: #475569; margin-top: 0; }}
+    .info {{ background: #f1f5f9; padding: 8px 12px; border-radius: 4px; margin-bottom: 15px; font-size: 10px; }}
+    table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
+    th {{ background: #1e40af; color: white; padding: 6px 8px; text-align: left; font-size: 9px; }}
+    td {{ padding: 5px 8px; border-bottom: 1px solid #e2e8f0; font-size: 9px; }}
+    tr:nth-child(even) {{ background: #f8fafc; }}
+    .totals {{ margin-top: 15px; text-align: right; }}
+    .totals div {{ margin: 3px 0; font-size: 11px; }}
+    .footer {{ margin-top: 20px; font-size: 8px; color: #94a3b8; text-align: center; }}
+</style></head><body>
+    <h1>{titulo}</h1>
+    <h2>{p['date_start']} &mdash; {p['date_end']} &nbsp;|&nbsp; {subtitulo}</h2>
+    <div class="info">
+        <strong>Delegacion:</strong> {p['delegacion']}
+    </div>
+    {tabla}
+    <div class="footer">
+        Generado automaticamente &mdash; {datetime.now().strftime('%d/%m/%Y %H:%M')} &mdash; Sistema de Gestion de Flujo de Caja
+    </div>
+</body></html>"""
+        try:
+            from weasyprint import HTML as WeasyHTML
+            return WeasyHTML(string=html).write_pdf()
+        except Exception:
+            return html.encode('utf-8')
+
+    @classmethod
+    def generate_subcategory_xlsx(
+        cls, db: Session,
+        delegacion: Optional[str],
+        date_start: date,
+        date_end: date,
+        subcategory_id: Optional[int] = None
+    ) -> bytes:
+        """Informe por subcategoria en Excel (resumen o detalle)."""
+        data = cls.get_subcategory_data(db, delegacion, date_start, date_end, subcategory_id)
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        wb = Workbook()
+        ws = wb.active
+        header_font = Font(bold=True, size=14, color="1E40AF")
+        th_font = Font(bold=True, size=9, color="FFFFFF")
+        th_fill = PatternFill(start_color="1E40AF", end_color="1E40AF", fill_type="solid")
+        border = Border(bottom=Side(style='thin', color='E2E8F0'))
+        p = data["periodo"]
+        if data["modo"] == "detalle":
+            ws.title = "Detalle subcategoria"
+            ws['A1'] = f"Detalle por Subcategoria: {data['categoria']} / {data['subcategoria']}"
+            ws['A1'].font = header_font
+            ws['A3'] = "Periodo:"; ws['B3'] = f"{p['date_start']} - {p['date_end']}"
+            ws['A4'] = "Delegacion:"; ws['B4'] = p['delegacion']
+            for cell in ['A3', 'A4']:
+                ws[cell].font = Font(bold=True, size=9)
+            headers = ['Fecha/Hora', 'Referencia', 'Concepto', 'Contraparte', 'Importe', 'Delegacion', 'Estado']
+            for col, h in enumerate(headers, 1):
+                c = ws.cell(row=6, column=col, value=h)
+                c.font = th_font; c.fill = th_fill; c.alignment = Alignment(horizontal='center')
+            for i, t in enumerate(data["transactions"], 7):
+                ws.cell(row=i, column=1, value=t['fecha'])
+                ws.cell(row=i, column=2, value=t['referencia'])
+                ws.cell(row=i, column=3, value=t['concepto'])
+                ws.cell(row=i, column=4, value=t['contraparte'])
+                amt = ws.cell(row=i, column=5, value=t['importe'])
+                amt.number_format = '#,##0'
+                amt.font = Font(color="16A34A" if t['tipo'] == 'income' else "DC2626", bold=True)
+                ws.cell(row=i, column=6, value=t['delegacion'])
+                ws.cell(row=i, column=7, value=t['estado'])
+                for col in range(1, 8):
+                    ws.cell(row=i, column=col).border = border
+            last = 7 + len(data["transactions"])
+            ws.cell(row=last+1, column=4, value="Total ingresos:").font = Font(bold=True)
+            c = ws.cell(row=last+1, column=5, value=data['total_ingresos']); c.font = Font(color="16A34A", bold=True); c.number_format = '#,##0'
+            ws.cell(row=last+2, column=4, value="Total egresos:").font = Font(bold=True)
+            c = ws.cell(row=last+2, column=5, value=data['total_egresos']); c.font = Font(color="DC2626", bold=True); c.number_format = '#,##0'
+            ws.cell(row=last+3, column=4, value="Saldo neto:").font = Font(bold=True, size=11)
+            c = ws.cell(row=last+3, column=5, value=data['saldo_neto']); c.font = Font(bold=True, size=11, color="1E40AF"); c.number_format = '#,##0'
+            widths = [18, 12, 40, 25, 16, 12, 12]
+        else:
+            ws.title = "Resumen subcategoria"
+            ws['A1'] = "Resumen por Subcategoria"
+            ws['A1'].font = header_font
+            ws['A3'] = "Periodo:"; ws['B3'] = f"{p['date_start']} - {p['date_end']}"
+            ws['A4'] = "Delegacion:"; ws['B4'] = p['delegacion']
+            for cell in ['A3', 'A4']:
+                ws[cell].font = Font(bold=True, size=9)
+            headers = ['Subcategoria', 'Categoria', 'N mov.', 'Ingresos', 'Egresos', 'Neto']
+            for col, h in enumerate(headers, 1):
+                c = ws.cell(row=6, column=col, value=h)
+                c.font = th_font; c.fill = th_fill; c.alignment = Alignment(horizontal='center')
+            for i, r in enumerate(data["rows"], 7):
+                ws.cell(row=i, column=1, value=r['subcategoria'])
+                ws.cell(row=i, column=2, value=r['categoria'])
+                ws.cell(row=i, column=3, value=r['num']).alignment = Alignment(horizontal='center')
+                for col, key, col_color in [(4, 'ingresos', '16A34A'), (5, 'egresos', 'DC2626'), (6, 'neto', '1E40AF')]:
+                    c = ws.cell(row=i, column=col, value=r[key])
+                    c.number_format = '#,##0'
+                    if col in (4, 5):
+                        c.font = Font(color=col_color)
+                    else:
+                        c.font = Font(bold=True, color=col_color)
+                for col in range(1, 7):
+                    ws.cell(row=i, column=col).border = border
+            last = 7 + len(data["rows"])
+            ws.cell(row=last+1, column=2, value="TOTAL").font = Font(bold=True)
+            c = ws.cell(row=last+1, column=4, value=data['total_ingresos']); c.font = Font(color="16A34A", bold=True); c.number_format = '#,##0'
+            c = ws.cell(row=last+1, column=5, value=data['total_egresos']); c.font = Font(color="DC2626", bold=True); c.number_format = '#,##0'
+            widths = [26, 22, 10, 16, 16, 16]
+        for col, w in enumerate(widths, 1):
+            ws.column_dimensions[chr(64+col)].width = w
+        buffer = io.BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        return buffer.getvalue()
+
+    @classmethod
     def get_period_data(
         cls, db: Session,
         delegacion: Optional[str],
