@@ -64,6 +64,7 @@ const menu = [
   { to:'/payrolls', label:'Nóminas', icon:'💰', roles:['admin','gestor','contable'] },
   { to:'/integrity', label:'Integridad', icon:'🔐', roles:['admin'] },
   { sep:'Catálogos', to:'/projects', label:'Proyectos', icon:'📁', roles:['admin'] },
+  { to:'/works', label:'Obras', icon:'🏗', roles:['admin'] },
   { to:'/categories', label:'Categorías', icon:'🏷️', roles:['admin'] },
   { to:'/suppliers', label:'Proveedores', icon:'🚚', roles:['admin'] },
   { to:'/employees', label:'Empleados', icon:'👥', roles:['admin','contable'] },
