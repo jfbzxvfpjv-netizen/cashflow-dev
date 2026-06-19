@@ -23,6 +23,10 @@
                   class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm disabled:opacity-50">
             Cerrar periodo
           </button>
+          <button v-if="canDelete" @click="doDelete" :disabled="busy"
+                  class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-sm disabled:opacity-50">
+            Eliminar nómina ({{ deleteCountdown }})
+          </button>
         </div>
       </div>
 
@@ -247,14 +251,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import payrollService from '@/services/payrollService'
 import { useAuthStore } from '@/stores/auth'
 import { normalizeText } from '@/composables/useTextNormalizer'
 import SignatureSection from '@/components/admin/SignatureSection.vue'
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.user?.role === 'admin')
 const isGestor = computed(() => auth.user?.role === 'gestor')
@@ -444,5 +449,42 @@ async function doLiquidateNoCash() {
 function fmtDate(iso) {
   if (!iso) return ''
   return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+// === M10b: borrado de periodo (desarrollo, ventana 30 min) ===
+const nowTs = ref(Date.now())
+let _delTick = null
+onMounted(() => { _delTick = setInterval(() => { nowTs.value = Date.now() }, 1000) })
+onUnmounted(() => { if (_delTick) clearInterval(_delTick) })
+function _parseUtc(s) {
+  if (!s) return 0
+  const hasTz = /[zZ]|[+-]\d{2}:?\d{2}$/.test(s)
+  return new Date(hasTz ? s : s + 'Z').getTime()
+}
+const deleteSecondsLeft = computed(() => {
+  if (!period.value?.created_at) return 0
+  const elapsed = (nowTs.value - _parseUtc(period.value.created_at)) / 1000
+  return Math.max(0, Math.floor(30 * 60 - elapsed))
+})
+const deleteCountdown = computed(() => {
+  const s = deleteSecondsLeft.value
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+})
+const canDelete = computed(() => {
+  const role = auth.user?.role
+  return (role === 'admin' || role === 'contable') && deleteSecondsLeft.value > 0
+})
+async function doDelete() {
+  if (!period.value) return
+  if (!confirm(`¿Eliminar la nómina de ${monthNames[period.value.month - 1]} ${period.value.year} (${period.value.delegacion})?\n\nSe revertirán anticipos, préstamos y retenciones y se borrarán los pagos en caja de sesiones abiertas. Esta acción no se puede deshacer.`)) return
+  busy.value = true
+  try {
+    await payrollService.deletePeriod(period.value.id)
+    router.push('/payrolls')
+  } catch (e) {
+    alert(e.response?.data?.detail || 'Error al eliminar la nómina')
+  } finally {
+    busy.value = false
+  }
 }
 </script>

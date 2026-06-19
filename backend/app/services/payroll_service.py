@@ -65,8 +65,8 @@ class PayrollService:
 
     # ── 1. Generar periodo ─────────────────────────────────────────────────
     def generate_period(self, data: PayrollPeriodCreate, user: User) -> PayrollPeriod:
-        if user.role != "admin":
-            raise HTTPException(status_code=403, detail="Solo admin puede generar periodos de nómina")
+        if user.role not in ("admin", "contable"):
+            raise HTTPException(status_code=403, detail="Solo admin o contable pueden generar periodos de nómina")
 
         existing = self.db.query(PayrollPeriod).filter(
             PayrollPeriod.year == data.year,
@@ -143,8 +143,8 @@ class PayrollService:
 
     # ── 4. Editar entrada (solo si periodo en 'draft') ─────────────────────
     def update_entry(self, entry_id: int, data: PayrollEntryUpdate, user: User) -> PayrollEntry:
-        if user.role != "admin":
-            raise HTTPException(status_code=403, detail="Solo admin puede editar entradas de nómina")
+        if user.role not in ("admin", "contable"):
+            raise HTTPException(status_code=403, detail="Solo admin o contable pueden editar entradas de nómina")
 
         entry = self.db.query(PayrollEntry).filter(PayrollEntry.id == entry_id).first()
         if not entry:
@@ -356,8 +356,8 @@ class PayrollService:
 
     # ── 6. Cerrar periodo ──────────────────────────────────────────────────
     def close_period(self, period_id: int, user: User) -> PayrollPeriod:
-        if user.role != "admin":
-            raise HTTPException(status_code=403, detail="Solo admin puede cerrar periodos")
+        if user.role not in ("admin", "contable"):
+            raise HTTPException(status_code=403, detail="Solo admin o contable pueden cerrar periodos")
 
         period = self._get_or_404(period_id)
         if period.status != "draft":
@@ -384,6 +384,83 @@ class PayrollService:
         return period
 
     # ── Helpers ────────────────────────────────────────────────────────────
+    def delete_period(self, period_id: int, user) -> dict:
+        """Borra fisicamente un periodo de nomina. HERRAMIENTA DE DESARROLLO.
+        Restricciones: ENV=development, rol admin/contable, ventana 30 min desde
+        creacion. Aborta si algun pago esta en sesion de caja cerrada. Revierte
+        anticipos/prestamos/retenciones y elimina transacciones de sesiones abiertas.
+        """
+        import os
+        from datetime import timedelta
+        from sqlalchemy import text as _t
+
+        if os.environ.get("ENV", "production") != "development":
+            raise HTTPException(status_code=403, detail="El borrado de nominas solo esta disponible en desarrollo")
+        if user.role not in ("admin", "contable"):
+            raise HTTPException(status_code=403, detail="Solo admin o contable pueden borrar nominas")
+
+        period = self._get_or_404(period_id)
+        if datetime.utcnow() - period.created_at > timedelta(minutes=30):
+            raise HTTPException(status_code=400, detail="Ventana de borrado de 30 minutos expirada")
+
+        entries = self.db.query(PayrollEntry).filter(PayrollEntry.period_id == period.id).all()
+
+        for e in entries:
+            if e.transaction_id:
+                row = self.db.execute(_t(
+                    "SELECT s.status FROM cash_sessions s "
+                    "JOIN transactions t ON t.session_id = s.id WHERE t.id = :tid"
+                ), {"tid": e.transaction_id}).fetchone()
+                if row and row[0] != "open":
+                    raise HTTPException(status_code=400, detail="Hay pagos en una sesion de caja ya cerrada; no se puede borrar")
+
+        reverted = {"advances": 0, "loans": 0, "retentions": 0, "transactions": 0}
+        txn_ids = []
+        for e in entries:
+            refs = e.deduction_refs or {}
+            if e.transaction_id or e.liquidated_without_cash:
+                for adv in (refs.get("advances") or []):
+                    self.db.execute(_t(
+                        "UPDATE advances_loans SET amount_repaid = GREATEST(COALESCE(amount_repaid,0) - :amt, 0), "
+                        "status = CASE WHEN COALESCE(amount_repaid,0) - :amt <= 0 THEN 'open' ELSE 'partial' END, "
+                        "closed_at = NULL WHERE id = :aid"
+                    ), {"amt": Decimal(adv["amount"]), "aid": adv["advance_id"]})
+                    reverted["advances"] += 1
+                for loan in (refs.get("loans") or []):
+                    self.db.execute(_t(
+                        "UPDATE advances_loans SET amount_repaid = GREATEST(COALESCE(amount_repaid,0) - :amt, 0), "
+                        "status = CASE WHEN COALESCE(amount_repaid,0) - :amt <= 0 THEN 'open' ELSE 'partial' END, "
+                        "closed_at = NULL WHERE id = :aid"
+                    ), {"amt": Decimal(loan["amount"]), "aid": loan["loan_id"]})
+                    reverted["loans"] += 1
+                for ret in (refs.get("retentions") or []):
+                    self.db.execute(_t(
+                        "UPDATE retentions_deposits SET status='pending', released_at=NULL, "
+                        "release_transaction_id=NULL WHERE id = :rid"
+                    ), {"rid": ret["retention_id"]})
+                    reverted["retentions"] += 1
+            if e.transaction_id:
+                txn_ids.append(e.transaction_id)
+
+        self.db.query(PayrollEntry).filter(PayrollEntry.period_id == period.id).delete(synchronize_session=False)
+
+        for tid in txn_ids:
+            for tbl in ("transaction_signatures", "transaction_projects", "transaction_attachments", "expense_approvals"):
+                self.db.execute(_t("DELETE FROM " + tbl + " WHERE transaction_id = :tid"), {"tid": tid})
+            self.db.execute(_t("DELETE FROM transactions WHERE id = :tid"), {"tid": tid})
+            reverted["transactions"] += 1
+
+        deleg = period.delegacion
+        pid = period.id
+        self.db.delete(period)
+        self.db.add(AuditLog(
+            user_id=user.id, delegacion=deleg, action="PAYROLL_PERIOD_DELETED",
+            entity="payroll_period", entity_id=pid,
+            details={"reverted": reverted, "entries": len(entries)},
+        ))
+        self.db.commit()
+        return {"deleted": True, "period_id": pid, "reverted": reverted}
+
     def _get_or_404(self, period_id: int) -> PayrollPeriod:
         p = self.db.query(PayrollPeriod).filter(PayrollPeriod.id == period_id).first()
         if not p:

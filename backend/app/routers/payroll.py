@@ -89,3 +89,10 @@ async def liquidate_no_cash(
     """
     svc = PayrollService(db)
     return svc.liquidate_without_cash(period_id, entry_id, user)
+@router.delete("/{period_id}")
+def delete_period(period_id: int, db: Session = Depends(get_db),
+                  user: User = Depends(get_current_user)):
+    """Borra un periodo de nomina (desarrollo: ENV=development, ventana 30 min,
+    admin/contable). Revierte deducciones y elimina transacciones de sesiones abiertas."""
+    svc = PayrollService(db)
+    return svc.delete_period(period_id, user)

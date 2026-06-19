@@ -25,4 +25,7 @@ export default {
   closePeriod(periodId) {
     return api.put(`/payrolls/${periodId}/close`)
   },
+  deletePeriod(periodId) {
+    return api.delete(`/payrolls/${periodId}`)
+  },
 }
