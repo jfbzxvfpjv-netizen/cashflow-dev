@@ -82,6 +82,7 @@
               </template>
             </td>
             <td class="px-4 py-3 text-right text-sm space-x-2">
+              <slot name="row-actions" :item="item" />
               <button
                 v-if="canEdit"
                 class="text-blue-600 hover:text-blue-800"
@@ -92,7 +93,7 @@
               <button
                 v-if="canToggle"
                 :class="item.active ? 'text-red-500 hover:text-red-700' : 'text-green-500 hover:text-green-700'"
-                @click="toggleActive(item)"
+                @click="item.active ? confirmDeactivate(item) : toggleActive(item)"
               >
                 {{ item.active ? 'Desactivar' : 'Activar' }}
               </button>
@@ -161,6 +162,17 @@
       </div>
     </Teleport>
   </div>
+    <!-- Modal confirmación desactivar -->
+    <div v-if="showDeactivateConfirm" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @click.self="showDeactivateConfirm = false">
+      <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Confirmar desactivación</h3>
+        <p class="text-sm text-gray-600 mb-4">Este registro dejará de estar disponible, pero <strong>no se elimina</strong>. Podrás volver a verlo marcando la casilla «Mostrar inactivos» y reactivarlo cuando quieras.</p>
+        <div class="flex justify-end gap-3">
+          <button class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800" @click="showDeactivateConfirm = false">Cancelar</button>
+          <button class="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700" @click="executeDeactivate">Desactivar</button>
+        </div>
+      </div>
+    </div>
     <!-- Modal confirmación eliminar -->
     <div v-if="showDeleteConfirm" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @click.self="showDeleteConfirm = false">
       <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
@@ -207,6 +219,8 @@ const loading = ref(false)
 const showModal = ref(false)
 const showDeleteConfirm = ref(false)
 const deletingItem = ref(null)
+const showDeactivateConfirm = ref(false)
+const deactivatingItem = ref(null)
 const deleteError = ref('')
 const editingItem = ref(null)
 
@@ -285,6 +299,18 @@ async function handleSave(data) {
   } catch (err) {
     throw err  // Propagar al formulario para mostrar error
   }
+}
+
+function confirmDeactivate(item) {
+  deactivatingItem.value = item
+  showDeactivateConfirm.value = true
+}
+
+async function executeDeactivate() {
+  if (!deactivatingItem.value) return
+  await toggleActive(deactivatingItem.value)
+  showDeactivateConfirm.value = false
+  deactivatingItem.value = null
 }
 
 async function toggleActive(item) {

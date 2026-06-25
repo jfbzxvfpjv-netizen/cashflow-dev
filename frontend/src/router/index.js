@@ -10,6 +10,7 @@ const ChangePasswordView = () => import('@/views/ChangePasswordView.vue')
 
 // M4 — Vistas de catálogos
 const ProjectsView = () => import('@/views/catalogs/ProjectsView.vue')
+const ProjectDetailView = () => import('@/views/catalogs/ProjectDetailView.vue')
 const WorksView = () => import('@/views/catalogs/WorksView.vue')
 const CategoriesView = () => import('@/views/catalogs/CategoriesView.vue')
 const SuppliersView = () => import('@/views/catalogs/SuppliersView.vue')
@@ -58,6 +59,7 @@ const routes = [
 
   // M4 — Catálogos
   { path: '/projects', name: 'projects', component: ProjectsView, meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: '/projects/:id', name: 'project-detail', component: ProjectDetailView, meta: { requiresAuth: true, roles: ['admin'] }, props: true },
   { path: '/works', name: 'works', component: WorksView, meta: { requiresAuth: true, roles: ['admin'] } },
   { path: '/categories', name: 'categories', component: CategoriesView, meta: { requiresAuth: true, roles: ['admin'] } },
   { path: '/suppliers', name: 'suppliers', component: SuppliersView, meta: { requiresAuth: true, roles: ['admin'] } },

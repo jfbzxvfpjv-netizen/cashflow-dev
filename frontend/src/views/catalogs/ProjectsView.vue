@@ -4,7 +4,6 @@
 -->
 <template>
   <div class="p-6">
-    <div class="text-xs text-red-500 mb-2">DEBUG isAdmin: {{ isAdmin }} role: {{ $store?.user?.role }}</div>
     <CatalogCrud
       ref="catalogRef"
       title="Proyectos"
@@ -27,6 +26,9 @@
           @save="onSave"
           @cancel="onCancel"
         />
+      </template>
+      <template #row-actions="{ item }">
+        <RouterLink :to="`/projects/${item.id}`" class="text-indigo-600 hover:text-indigo-800">Obras</RouterLink>
       </template>
     </CatalogCrud>
   </div>

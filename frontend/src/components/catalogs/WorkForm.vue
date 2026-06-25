@@ -7,7 +7,7 @@
     <div>
       <label class="block text-sm font-medium text-gray-700 mb-1">Proyecto *</label>
       <select
-        v-if="!isEditing"
+        v-if="!isEditing && !lockedProjectId"
         v-model.number="form.project_id"
         class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
@@ -17,7 +17,7 @@
       <input
         v-else
         type="text"
-        :value="projectLabel"
+        :value="lockedLabel || projectLabel"
         disabled
         class="w-full rounded-md border bg-gray-100 border-gray-200 text-gray-500 px-3 py-2 text-sm cursor-not-allowed"
       />
@@ -57,12 +57,13 @@ import { projectsApi } from '@/api/catalogs'
 const props = defineProps({
   item: { type: Object, default: null },
   isEditing: { type: Boolean, default: false },
+  lockedProjectId: { type: Number, default: null },
 })
 const emit = defineEmits(['save', 'cancel'])
 
 const projects = ref([])
 const form = ref({
-  project_id: props.item?.project_id || null,
+  project_id: props.item?.project_id || props.lockedProjectId || null,
   code: props.item?.code || '',
   name: props.item?.name || '',
 })
@@ -72,6 +73,11 @@ const projectLabel = computed(() => {
   const c = props.item?.project_code || ''
   const n = props.item?.project_name || ''
   return [c, n].filter(Boolean).join(' — ')
+})
+const lockedLabel = computed(() => {
+  if (!props.lockedProjectId) return ''
+  const p = projects.value.find(x => x.id === props.lockedProjectId)
+  return p ? `${p.code} — ${p.name}` : `Proyecto #${props.lockedProjectId}`
 })
 
 onMounted(async () => {
