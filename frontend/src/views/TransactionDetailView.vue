@@ -490,15 +490,28 @@ onMounted(() => load())
 
 // M11 F-extension: descarga recibo PDF de la transaccion en nueva pestana
 async function downloadReceipt() {
+  // Abrir la pestana de forma sincrona dentro del gesto de usuario evita
+  // que el bloqueador de pop-ups la cancele tras el await.
+  const win = window.open('', '_blank')
   try {
     const response = await api.get(`/reports/transaction/${txn.value.id}/receipt`, {
       responseType: 'blob'
     })
     const blob = new Blob([response.data], { type: 'application/pdf' })
     const url = URL.createObjectURL(blob)
-    window.open(url, '_blank')
+    if (win) {
+      win.location = url
+    } else {
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `recibo_txn_${txn.value.id}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
     setTimeout(() => URL.revokeObjectURL(url), 10000)
   } catch (e) {
+    if (win) win.close()
     const detail = e.response?.data?.detail || e.message || 'Error desconocido'
     alert('No se pudo generar el recibo: ' + detail)
   }

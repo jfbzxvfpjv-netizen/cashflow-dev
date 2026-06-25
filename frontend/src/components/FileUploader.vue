@@ -39,8 +39,8 @@
         <span class="text-base">📎</span>
         <span class="flex-1 truncate">{{ att.original_filename }}</span>
         <span class="text-xs text-gray-400">{{ formatSize(att.file_size_bytes) }}</span>
-        <a :href="downloadUrl(att.id)" target="_blank"
-           class="text-blue-600 hover:text-blue-800 text-xs">Descargar</a>
+        <button type="button" @click="openAttachment(att.id, att.original_filename)"
+           class="text-blue-600 hover:text-blue-800 text-xs">Descargar</button>
         <button v-if="canUpload && !att.locked"
                 @click="deleteAttachment(att.id)"
                 class="text-red-500 hover:text-red-700 text-xs">Eliminar</button>
@@ -54,6 +54,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import attachmentService from '@/services/attachmentService'
+import api from '@/services/api'
 
 const props = defineProps({
   transactionId: { type: Number, default: null },
@@ -79,8 +80,20 @@ async function loadAttachments() {
   }
 }
 
-function downloadUrl(attId) {
-  return attachmentService.downloadUrl(props.transactionId, attId)
+async function openAttachment(attId, filename) {
+  try {
+    const response = await api.get(`/transactions/${props.transactionId}/attachments/${attId}`, { responseType: 'blob' })
+    const blobUrl = URL.createObjectURL(response.data)
+    const link = document.createElement('a')
+    link.href = blobUrl
+    link.download = filename || `adjunto_${attId}`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000)
+  } catch (e) {
+    error.value = 'No se pudo descargar el adjunto: ' + (e.response?.status || e.message)
+  }
 }
 
 function formatSize(bytes) {
