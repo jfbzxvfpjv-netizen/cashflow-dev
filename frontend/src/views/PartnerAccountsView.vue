@@ -93,7 +93,7 @@
             <label class="block mb-2 text-sm">Socio</label>
             <select v-model="chargeForm.partner_id" class="w-full border rounded px-3 py-2 truncate">
               <option :value="null">— Socio —</option>
-              <option v-for="b in balances" :key="b.partner_id" :value="b.partner_id">{{ b.partner_name }}</option>
+              <option v-for="p in partnersFull" :key="p.id" :value="p.id">{{ p.full_name }}</option>
             </select>
           </div>
           <div>
@@ -334,9 +334,23 @@ const canSubmitContrib = computed(() => {
 
 // Cargas
 const load = async () => {
-  balances.value  = await partnerAccountsService.balances()
-  movements.value = await partnerAccountsService.movements()
-  partnersFull.value = extractArray((await api.get('/partners')).data).filter(p => p.active)
+  // Cada carga aislada: balances/movements estan restringidos a admin/contable/consulta;
+  // su 403 para un gestor no debe impedir cargar los socios ni operar el cargo.
+  try {
+    balances.value = await partnerAccountsService.balances()
+  } catch (e) {
+    balances.value = []
+  }
+  try {
+    movements.value = await partnerAccountsService.movements()
+  } catch (e) {
+    movements.value = []
+  }
+  try {
+    partnersFull.value = extractArray((await api.get('/partners')).data).filter(p => p.active)
+  } catch (e) {
+    partnersFull.value = []
+  }
 }
 
 const loadCatalogs = async () => {
